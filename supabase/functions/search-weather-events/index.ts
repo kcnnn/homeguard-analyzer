@@ -1,6 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -20,7 +20,7 @@ serve(async (req) => {
     const { location, effectiveDate, expirationDate } = await req.json();
     console.log('Searching for weather events:', { location, effectiveDate, expirationDate });
 
-    // Initialize Supabase client with service role key for database operations
+    // Initialize Supabase client with service role key
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     // Create the prompt for OpenAI
@@ -47,7 +47,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
@@ -71,7 +71,7 @@ serve(async (req) => {
     const events = parsedContent.events || [];
     console.log('Parsed events:', events);
 
-    // Store each event in the database
+    // Store each event in the database using upsert
     for (const event of events) {
       const { error: upsertError } = await supabase
         .from('weather_events')
@@ -93,6 +93,7 @@ serve(async (req) => {
       }
     }
 
+    // Return the events directly from OpenAI instead of querying the database
     return new Response(JSON.stringify({ success: true, events }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });

@@ -29,7 +29,7 @@ const Index = () => {
 
       console.log('Searching for weather events with params:', { location, effectiveDate, expirationDate });
 
-      // First, search for new weather events using OpenAI
+      // Search for weather events using OpenAI
       try {
         const response = await supabase.functions.invoke('search-weather-events', {
           body: { 
@@ -46,9 +46,23 @@ const Index = () => {
             description: "Failed to search for weather events",
             variant: "destructive",
           });
-        } else {
-          console.log('Successfully searched for weather events:', response.data);
+          return [];
         }
+
+        console.log('Successfully searched for weather events:', response.data);
+        
+        // Return the events directly from the OpenAI response
+        if (response.data?.events) {
+          return response.data.events.map((event: any) => ({
+            date: event.date,
+            type: event.type as 'hail' | 'wind',
+            details: event.details,
+            source: event.source || undefined,
+            sourceUrl: event.sourceUrl || undefined,
+          }));
+        }
+
+        return [];
       } catch (error) {
         console.error('Error calling search-weather-events function:', error);
         toast({
@@ -56,43 +70,8 @@ const Index = () => {
           description: "Failed to search for weather events",
           variant: "destructive",
         });
-      }
-
-      // Then fetch all events from the database
-      const { data, error } = await supabase
-        .from('weather_events')
-        .select('*')
-        .eq('location', location)
-        .gte('date', effectiveDate)
-        .lte('date', expirationDate)
-        .order('date', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching weather events:', error);
-        toast({
-          title: "Error",
-          description: "Failed to fetch weather events",
-          variant: "destructive",
-        });
         return [];
       }
-
-      console.log('Retrieved weather events:', data);
-
-      return (data || []).map(event => {
-        if (event.type !== 'hail' && event.type !== 'wind') {
-          console.warn(`Invalid weather event type: ${event.type}, defaulting to 'wind'`);
-          event.type = 'wind';
-        }
-
-        return {
-          date: event.date,
-          type: event.type as 'hail' | 'wind',
-          details: event.details,
-          source: event.source || undefined,
-          sourceUrl: event.source_url || undefined,
-        } satisfies WeatherEvent;
-      });
     },
     enabled: !!(location && effectiveDate && expirationDate),
   });
