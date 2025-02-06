@@ -10,7 +10,7 @@ const corsHeaders = {
 };
 
 async function searchNOAAEvents(location: string, startDate: string, endDate: string) {
-  console.log('Searching NOAA events for:', { location, startDate, endDate });
+  console.log('Starting NOAA search with params:', { location, startDate, endDate });
   
   try {
     // Format dates for NOAA API (YYYY-MM-DD)
@@ -24,33 +24,42 @@ async function searchNOAAEvents(location: string, startDate: string, endDate: st
 
     console.log('Formatted NOAA search params:', { city, state, formattedStartDate, formattedEndDate });
 
-    const url = `https://www.ncdc.noaa.gov/cdo-web/api/v2/data?datasetid=GHCND&locationid=FIPS:48&startdate=${formattedStartDate}&enddate=${formattedEndDate}&limit=1000`;
+    // Using a more general endpoint that doesn't require specific location IDs
+    const url = `https://www.ncdc.noaa.gov/cdo-web/api/v2/data?datasetid=GHCND&startdate=${formattedStartDate}&enddate=${formattedEndDate}&limit=1000`;
     
     console.log('NOAA API URL:', url);
+    console.log('Using NOAA API Key:', noaaApiKey ? 'Key is present' : 'No key found');
 
     const response = await fetch(url, {
       headers: {
-        'token': noaaApiKey
+        'token': noaaApiKey || ''
       }
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('NOAA API Error:', errorText);
+      console.error('NOAA API Error:', response.status, errorText);
       return [];
     }
 
     const data = await response.json();
-    console.log('NOAA API Response:', data);
+    console.log('NOAA API Response:', JSON.stringify(data, null, 2));
+
+    if (!data.results || !Array.isArray(data.results)) {
+      console.log('No results found in NOAA response');
+      return [];
+    }
 
     // Transform NOAA events into our format
-    return data.results?.map((event: any) => ({
-      date: event.date.split('T')[0],
-      type: event.datatype.includes('WIND') ? 'wind' : 'hail',
-      details: `${event.datatype}: ${event.value} ${event.unit || ''}`,
-      source: 'NOAA National Weather Service',
-      sourceUrl: 'https://www.ncdc.noaa.gov/stormevents/',
-    })) || [];
+    return data.results
+      .filter((event: any) => event.datatype && event.date)
+      .map((event: any) => ({
+        date: event.date.split('T')[0],
+        type: event.datatype.includes('WIND') ? 'wind' : 'hail',
+        details: `${event.datatype}: ${event.value} ${event.unit || ''}`,
+        source: 'NOAA National Weather Service',
+        sourceUrl: 'https://www.ncdc.noaa.gov/stormevents/',
+      }));
 
   } catch (error) {
     console.error('Error fetching NOAA data:', error);
@@ -77,7 +86,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: 'gpt-4',
           messages: [
             {
               role: 'system',
@@ -91,18 +100,30 @@ serve(async (req) => {
           temperature: 0.7,
           response_format: { type: "json_object" },
         }),
-      }).then(res => res.json()),
+      }).then(async res => {
+        if (!res.ok) {
+          console.error('OpenAI API Error:', await res.text());
+          return { choices: [] };
+        }
+        return res.json();
+      }),
       
       // Get events from NOAA
       searchNOAAEvents(location, effectiveDate, expirationDate)
     ]);
 
-    console.log('OpenAI Response:', openAIResponse);
+    console.log('OpenAI Response:', JSON.stringify(openAIResponse, null, 2));
 
     // Parse OpenAI events
-    const openAIEvents = openAIResponse.choices?.[0]?.message?.content
-      ? JSON.parse(openAIResponse.choices[0].message.content).events
-      : [];
+    let openAIEvents = [];
+    try {
+      if (openAIResponse.choices?.[0]?.message?.content) {
+        const parsed = JSON.parse(openAIResponse.choices[0].message.content);
+        openAIEvents = parsed.events || [];
+      }
+    } catch (error) {
+      console.error('Error parsing OpenAI response:', error);
+    }
 
     console.log('Parsed OpenAI events:', openAIEvents);
     console.log('NOAA events:', noaaEvents);
