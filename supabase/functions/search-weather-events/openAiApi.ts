@@ -18,7 +18,7 @@ export async function searchOpenAIEvents(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-4',
         messages: [
           {
             role: 'system',
@@ -85,8 +85,8 @@ export async function searchOpenAIEvents(
           date: event.date,
           type: event.type as 'hail' | 'wind',
           details: event.details,
-          source: event.source || 'STORMERSITE.COM',
-          sourceUrl: event.sourceUrl
+          source: event.source || 'Weather History Database',
+          sourceUrl: event.sourceUrl || undefined
         }));
 
       console.log('Processed OpenAI events:', validEvents);
