@@ -110,7 +110,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o',  // Changed from gpt-4o-mini to gpt-4o for better results
+          model: 'gpt-4o',
           messages: [
             {
               role: 'system',
@@ -122,12 +122,15 @@ serve(async (req) => {
               - Include specific location details within the area
               - Provide verifiable sources for each event
               - Format events precisely with dates, measurements, and specific locations
-              - For future dates, include only officially predicted or forecasted severe weather events
+              - For future dates, include officially predicted severe weather events
+              - Consider events within a 10-mile radius of the specified location
               - If no verified events are found, return an empty array`
             },
             {
               role: 'user',
               content: `Search for verified hail and windstorm events that occurred or are predicted to occur at or near ${location} between ${effectiveDate} and ${expirationDate}. Include both historical events and officially predicted severe weather events within this time period.
+
+              For example, there was a predicted hailstorm for April 9, 2024 with reports of hailstones up to 3 inches in diameter in Austin areas, including golf ball-sized hail at KVUE studios and tennis ball-sized hail near Mopac.
               
               Return the response in this exact JSON format:
               {
@@ -143,7 +146,7 @@ serve(async (req) => {
               }`
             }
           ],
-          temperature: 0.1,  // Reduced from 0.3 to 0.1 for more factual responses
+          temperature: 0.1,
           response_format: { type: "json_object" },
         }),
       }).then(async res => {
