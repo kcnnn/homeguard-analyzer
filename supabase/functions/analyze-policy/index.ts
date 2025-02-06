@@ -8,6 +8,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface WeatherEvent {
+  date: string;
+  type: 'hail' | 'wind';
+  details: string;
+  source: string;
+  sourceUrl: string;
+}
+
 interface PolicyDetails {
   coverageA: string;
   coverageB: string;
@@ -17,73 +25,16 @@ interface PolicyDetails {
   windstormDeductible: string;
   effectiveDate: string;
   expirationDate: string;
+  location: string;
   weatherEvents: WeatherEvent[];
-}
-
-interface WeatherEvent {
-  date: string;
-  type: 'hail' | 'wind';
-  details: string;
-  source: string;
-  sourceUrl: string;
 }
 
 const formatBase64Image = (base64Image: string): string => {
   return base64Image.replace(/^data:image\/[a-z]+;base64,/, '');
 };
 
-const searchWeatherEvents = async (location: string, startDate: string, endDate: string) => {
-  const prompt = `Search for weather events (hail and high winds over 50mph) at this location: ${location} between ${startDate} and ${endDate}.
-  Use sources like NOAA Storm Events Database (https://www.ncdc.noaa.gov/stormevents/) or Weather Underground.
-  Format each event as:
-  - Date: [date]
-  - Type: [hail or wind]
-  - Details: [brief description]
-  - Source: [website name]
-  - URL: [direct link to event report if available, or main source URL]
-  
-  Return as JSON array of events. If no events found, return empty array.`;
-
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openAIApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content: "You are a weather research assistant. Search historical weather databases and return verified weather events in JSON format."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      temperature: 0.7
-    })
-  });
-
-  const data = await response.json();
-  try {
-    const content = data.choices[0].message.content;
-    const events = JSON.parse(content);
-    return events;
-  } catch (error) {
-    console.error('Error parsing weather events:', error);
-    return [];
-  }
-};
-
-const createOpenAIRequest = (imageUrl: string) => {
-  return {
-    model: "gpt-4",
-    messages: [
-      {
-        role: 'system',
-        content: `You are an expert insurance policy analyzer. Extract coverage amounts, deductibles, dates, and location accurately.
+const createSystemPrompt = (): string => {
+  return `You are an expert insurance policy analyzer. Extract coverage amounts, deductibles, dates, and location accurately.
 
 COVERAGE AMOUNTS EXTRACTION:
 You must find and extract the exact dollar amounts for:
@@ -118,13 +69,6 @@ Extract:
 - Policy effective date
 - Policy expiration date
 
-IMPORTANT NOTES:
-- Do NOT perform any calculations yourself
-- Only return dollar amounts explicitly shown on the page
-- Include the dollar sign ($) in ALL monetary values
-- If you can't find an exact amount, return "Not found"
-- Pay special attention to the deductibles section, which often appears on a separate page
-
 Return a JSON object with these fields:
 - coverageA (with $ sign)
 - coverageB (with $ sign)
@@ -134,7 +78,16 @@ Return a JSON object with these fields:
 - windstormDeductible (exact calculated amount with $ sign)
 - effectiveDate
 - expirationDate
-- location (full property address)`
+- location (full property address)`;
+};
+
+const createOpenAIRequest = (imageUrl: string) => {
+  return {
+    model: "gpt-4o",
+    messages: [
+      {
+        role: 'system',
+        content: createSystemPrompt()
       },
       {
         role: 'user',
@@ -156,15 +109,62 @@ Return a JSON object with these fields:
   };
 };
 
-const callOpenAI = async (requestBody: any) => {
-  console.log('Calling OpenAI API...');
+const searchWeatherEvents = async (location: string, startDate: string, endDate: string): Promise<WeatherEvent[]> => {
+  const prompt = `Search for weather events (hail and high winds over 50mph) at this location: ${location} between ${startDate} and ${endDate}.
+  Use sources like NOAA Storm Events Database (https://www.ncdc.noaa.gov/stormevents/) or Weather Underground.
+  Format each event as:
+  - Date: [date]
+  - Type: [hail or wind]
+  - Details: [brief description]
+  - Source: [website name]
+  - URL: [direct link to event report if available, or main source URL]
+  
+  Return as JSON array of events. If no events found, return empty array.`;
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are a weather research assistant. Search historical weather databases and return verified weather events in JSON format."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.7
+      })
+    });
+
+    const data = await response.json();
+    console.log('Weather search response:', data);
+    
+    const content = data.choices[0].message.content;
+    return JSON.parse(content);
+  } catch (error) {
+    console.error('Error searching weather events:', error);
+    return [];
+  }
+};
+
+const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
+  console.log('Analyzing policy image...');
+  
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${openAIApiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(requestBody),
+    body: JSON.stringify(createOpenAIRequest(imageUrl)),
   });
 
   if (!response.ok) {
@@ -173,73 +173,14 @@ const callOpenAI = async (requestBody: any) => {
     throw new Error(`OpenAI API error: ${JSON.stringify(errorData.error || errorData)}`);
   }
 
-  return response.json();
-};
-
-const parseOpenAIResponse = (content: string): string => {
-  console.log('Raw OpenAI response:', content);
+  const data = await response.json();
+  console.log('Policy analysis response:', data);
   
-  try {
-    JSON.parse(content);
-    return content;
-  } catch (e) {
-    try {
-      if (content.includes('```json')) {
-        content = content.split('```json')[1].split('```')[0].trim();
-      } else if (content.includes('```')) {
-        content = content.split('```')[1].split('```')[0].trim();
-      }
-
-      const startIndex = content.indexOf('{');
-      const endIndex = content.lastIndexOf('}') + 1;
-      
-      if (startIndex === -1 || endIndex === 0) {
-        throw new Error('No valid JSON object found in response');
-      }
-      
-      content = content.substring(startIndex, endIndex);
-      JSON.parse(content);
-      return content;
-    } catch (e) {
-      console.error('Error parsing OpenAI response:', e);
-      throw new Error('Failed to parse OpenAI response into valid JSON');
-    }
+  if (!data.choices?.[0]?.message?.content) {
+    throw new Error('Invalid response structure from OpenAI');
   }
-};
 
-const formatPolicyDetails = (rawDetails: any): PolicyDetails => {
-  console.log('Formatting policy details:', rawDetails);
-  
-  const defaultDetails: PolicyDetails = {
-    coverageA: 'Not found',
-    coverageB: 'Not found',
-    coverageC: 'Not found',
-    coverageD: 'Not found',
-    deductible: 'Not found',
-    windstormDeductible: 'Not found',
-    effectiveDate: 'Not found',
-    expirationDate: 'Not found',
-    weatherEvents: []
-  };
-
-  const currencyFields = ['coverageA', 'coverageB', 'coverageC', 'coverageD', 'deductible', 'windstormDeductible'];
-  
-  Object.keys(defaultDetails).forEach(field => {
-    if (rawDetails[field] && typeof rawDetails[field] === 'string') {
-      let value = rawDetails[field];
-      
-      if (currencyFields.includes(field) && value !== 'Not found') {
-        value = value.replace(/[^0-9.]/g, '');
-        if (!isNaN(parseFloat(value))) {
-          value = `$${value}`;
-        }
-      }
-      
-      defaultDetails[field as keyof PolicyDetails] = value;
-    }
-  });
-
-  return defaultDetails;
+  return JSON.parse(data.choices[0].message.content.trim());
 };
 
 serve(async (req) => {
@@ -264,43 +205,30 @@ serve(async (req) => {
     const formattedBase64 = formatBase64Image(base64Image);
     const imageUrl = `data:image/jpeg;base64,${formattedBase64}`;
     
-    console.log('Preparing request to OpenAI...');
-    const requestBody = createOpenAIRequest(imageUrl);
+    console.log('Analyzing policy declaration page...');
+    const policyDetails = await analyzePolicyImage(imageUrl);
     
-    const data = await callOpenAI(requestBody);
-    console.log('OpenAI response received');
-
-    if (!data.choices?.[0]?.message?.content) {
-      console.error('Invalid OpenAI response structure:', data);
-      throw new Error('Invalid response structure from OpenAI');
-    }
-
-    const content = parseOpenAIResponse(data.choices[0].message.content.trim());
-    console.log('Parsed content:', content);
-
-    const parsedDetails = JSON.parse(content);
-    
-    // Search for weather events using the extracted location and dates
-    if (parsedDetails.location && parsedDetails.effectiveDate && parsedDetails.expirationDate) {
+    // Search for weather events if location and dates are available
+    if (policyDetails.location && policyDetails.effectiveDate && policyDetails.expirationDate) {
+      console.log('Searching for weather events...');
       const weatherEvents = await searchWeatherEvents(
-        parsedDetails.location,
-        parsedDetails.effectiveDate,
-        parsedDetails.expirationDate
+        policyDetails.location,
+        policyDetails.effectiveDate,
+        policyDetails.expirationDate
       );
-      parsedDetails.weatherEvents = weatherEvents;
+      policyDetails.weatherEvents = weatherEvents;
+    } else {
+      policyDetails.weatherEvents = [];
     }
 
-    const formattedDetails = formatPolicyDetails(parsedDetails);
-
-    console.log('Sending formatted response:', formattedDetails);
-    return new Response(JSON.stringify(formattedDetails), {
+    console.log('Sending response:', policyDetails);
+    return new Response(JSON.stringify(policyDetails), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
     console.error('Error in analyze-policy function:', error);
-    
-    const errorResponse = {
+    return new Response(JSON.stringify({ 
       error: error.message || 'An unexpected error occurred',
       coverageA: 'Error processing request',
       coverageB: 'Error processing request',
@@ -311,9 +239,7 @@ serve(async (req) => {
       effectiveDate: 'Error processing request',
       expirationDate: 'Error processing request',
       weatherEvents: []
-    };
-
-    return new Response(JSON.stringify(errorResponse), {
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
