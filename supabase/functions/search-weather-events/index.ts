@@ -110,7 +110,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o',
+          model: 'gpt-4o',  // Changed from gpt-4o-mini to gpt-4o for better results
           messages: [
             {
               role: 'system',
@@ -121,7 +121,7 @@ serve(async (req) => {
               - Include specific details about size of hail or wind speeds when available
               - Include specific location details within the area
               - Provide verifiable sources for each event
-              - If you find events, format them precisely with dates, measurements, and specific locations
+              - Format events precisely with dates, measurements, and specific locations
               - For future dates, include only officially predicted or forecasted severe weather events
               - If no verified events are found, return an empty array`
             },
@@ -143,7 +143,7 @@ serve(async (req) => {
               }`
             }
           ],
-          temperature: 0.3,
+          temperature: 0.1,  // Reduced from 0.3 to 0.1 for more factual responses
           response_format: { type: "json_object" },
         }),
       }).then(async res => {
