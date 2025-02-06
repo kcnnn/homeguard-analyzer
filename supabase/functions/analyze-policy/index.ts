@@ -27,37 +27,33 @@ serve(async (req) => {
       throw new Error('No image data provided');
     }
 
-    console.log('Sending request to OpenAI...');
+    console.log('Preparing request to OpenAI...');
 
-    const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini", // Using the faster model as recommended
+        model: "gpt-4o-mini",
         messages: [
           {
             role: 'system',
-            content: `You are an expert insurance policy analyzer. Extract coverage information and return it in this EXACT JSON format:
-            {
-              "coverageA": "$XXX,XXX",
-              "coverageB": "$XXX,XXX",
-              "coverageC": "$XXX,XXX",
-              "coverageD": "$XXX,XXX",
-              "deductible": "$X,XXX",
-              "effectiveDate": "MM/DD/YYYY",
-              "expirationDate": "MM/DD/YYYY"
-            }
-            Use "Not found" if a value cannot be determined. Do not include any additional text or explanation.`
+            content: 'You are an expert insurance policy analyzer. Extract coverage information from the image and return it in JSON format with coverageA, coverageB, coverageC, coverageD, deductible, effectiveDate, and expirationDate fields. Use "Not found" if a value cannot be determined.'
           },
           {
             role: 'user',
             content: [
               {
-                type: 'image',
-                image_url: base64Image
+                type: 'text',
+                text: 'Please analyze this insurance policy declaration page and extract the coverage information.'
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: base64Image
+                }
               }
             ]
           }
@@ -66,22 +62,16 @@ serve(async (req) => {
       }),
     });
 
-    if (!openAIResponse.ok) {
-      const errorData = await openAIResponse.json();
-      console.error('OpenAI API error:', JSON.stringify(errorData));
-      
-      // Handle specific error cases
-      if (errorData.error?.code === 'insufficient_quota') {
-        throw new Error('OpenAI API quota exceeded. Please check your billing details.');
-      } else if (errorData.error?.code === 'model_not_found') {
-        throw new Error('Invalid model configuration. Please contact support.');
-      }
-      
+    console.log('OpenAI API response status:', response.status);
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('OpenAI API error:', errorData);
       throw new Error(`OpenAI API error: ${JSON.stringify(errorData.error || errorData)}`);
     }
 
-    const data = await openAIResponse.json();
-    console.log('OpenAI response received:', JSON.stringify(data));
+    const data = await response.json();
+    console.log('OpenAI response received');
 
     if (!data.choices?.[0]?.message?.content) {
       console.error('Invalid OpenAI response structure:', data);
@@ -91,31 +81,30 @@ serve(async (req) => {
     let content = data.choices[0].message.content.trim();
     console.log('Raw content from OpenAI:', content);
 
-    // Clean up the content to ensure we get valid JSON
-    if (content.includes('```json')) {
-      content = content.split('```json')[1].split('```')[0].trim();
-    } else if (content.includes('```')) {
-      content = content.split('```')[1].split('```')[0].trim();
-    }
-
-    // If there's still text before or after the JSON object, extract just the JSON
-    if (content.includes('{')) {
-      const startIndex = content.indexOf('{');
-      const endIndex = content.lastIndexOf('}') + 1;
-      content = content.substring(startIndex, endIndex);
-    }
-
-    console.log('Cleaned content before parsing:', content);
-
+    // Parse the JSON response
     let policyDetails;
     try {
+      // If the content is wrapped in code blocks, extract just the JSON
+      if (content.includes('```json')) {
+        content = content.split('```json')[1].split('```')[0].trim();
+      } else if (content.includes('```')) {
+        content = content.split('```')[1].split('```')[0].trim();
+      }
+
+      // If there's still text before or after the JSON object, extract just the JSON
+      if (content.includes('{')) {
+        const startIndex = content.indexOf('{');
+        const endIndex = content.lastIndexOf('}') + 1;
+        content = content.substring(startIndex, endIndex);
+      }
+
       policyDetails = JSON.parse(content);
     } catch (parseError) {
-      console.error('JSON parse error:', parseError);
-      throw new Error('Failed to parse JSON response');
+      console.error('JSON parse error:', parseError, 'Content:', content);
+      throw new Error('Failed to parse policy details from OpenAI response');
     }
 
-    // Validate and ensure all required fields exist
+    // Ensure all required fields exist with proper formatting
     const requiredFields = ['coverageA', 'coverageB', 'coverageC', 'coverageD', 'deductible', 'effectiveDate', 'expirationDate'];
     for (const field of requiredFields) {
       if (!policyDetails[field]) {
@@ -129,7 +118,7 @@ serve(async (req) => {
       }
     }
 
-    console.log('Final policy details:', JSON.stringify(policyDetails));
+    console.log('Sending response:', policyDetails);
 
     return new Response(JSON.stringify(policyDetails), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
