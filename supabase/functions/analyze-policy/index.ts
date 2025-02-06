@@ -35,7 +35,7 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: 'You are an expert insurance policy analyzer. Extract key information from insurance policy documents, including coverage amounts, deductibles, and policy dates. Return the information in a structured format.'
+            content: 'You are an expert insurance policy analyzer. Extract key information from insurance policy documents and return it in a strict JSON format with the following fields: coverageA, coverageB, coverageC, coverageD, deductible, effectiveDate, and expirationDate. All values should be strings.'
           },
           {
             role: 'user',
@@ -46,7 +46,7 @@ serve(async (req) => {
               },
               {
                 type: 'text',
-                text: 'Please analyze this insurance policy document and extract the following information: Coverage A (Dwelling), Coverage B (Other Structures), Coverage C (Personal Property), Coverage D (Loss of Use), Deductible, Effective Date, and Expiration Date. Return ONLY a valid JSON object with these fields, nothing else.'
+                text: 'Analyze this insurance policy document and return ONLY a JSON object with these exact fields: coverageA, coverageB, coverageC, coverageD, deductible, effectiveDate, and expirationDate. Format all currency values as strings with dollar signs (e.g. "$250,000"). Format all dates as MM/DD/YYYY strings. Do not include any explanatory text, just the JSON object.'
               }
             ]
           }
@@ -60,8 +60,28 @@ serve(async (req) => {
     let policyDetails;
     try {
       const content = data.choices[0].message.content;
-      console.log('Attempting to parse content:', content);
-      policyDetails = JSON.parse(content);
+      console.log('Raw content from OpenAI:', content);
+      
+      // Try to clean the content if it contains any markdown or extra text
+      let jsonContent = content;
+      if (content.includes('```json')) {
+        jsonContent = content.split('```json')[1].split('```')[0];
+      } else if (content.includes('{')) {
+        jsonContent = content.substring(content.indexOf('{'), content.lastIndexOf('}') + 1);
+      }
+      
+      console.log('Cleaned content before parsing:', jsonContent);
+      policyDetails = JSON.parse(jsonContent);
+      
+      // Ensure all required fields are present
+      const requiredFields = ['coverageA', 'coverageB', 'coverageC', 'coverageD', 'deductible', 'effectiveDate', 'expirationDate'];
+      for (const field of requiredFields) {
+        if (!policyDetails[field]) {
+          policyDetails[field] = 'Not found';
+        }
+      }
+      
+      console.log('Successfully parsed policy details:', policyDetails);
     } catch (error) {
       console.error('Error parsing OpenAI response:', error);
       policyDetails = {
