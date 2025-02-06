@@ -44,12 +44,17 @@ Return ONLY a JSON object with the following structure, no additional text or fo
 };
 
 const createSystemPromptForDeductibles = (): string => {
-  return `You are an expert insurance policy analyzer. Extract ONLY the deductible information.
+  return `You are an expert insurance policy analyzer. Look for the following specific deductibles:
+1. The "All Other Perils" (AOP) deductible - this is the standard deductible for most covered losses
+2. The "Wind/Hail" or "Named Storm" deductible - this may be expressed as either a fixed amount or a percentage of Coverage A
+
 Return ONLY a JSON object with the following structure, no additional text or formatting:
 {
   "deductible": "$X,XXX",
   "windstormDeductible": "$X,XXX or X%"
-}`;
+}
+
+Note: Include the $ symbol and commas for dollar amounts. For percentage-based windstorm deductibles, use the % symbol.`;
 };
 
 const cleanJsonResponse = (content: string): string => {
@@ -92,7 +97,7 @@ const analyzeImage = async (imageUrl: string, isDeductibles: boolean): Promise<a
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4-vision-preview',
         messages: [
           {
             role: 'system',
@@ -109,6 +114,7 @@ const analyzeImage = async (imageUrl: string, isDeductibles: boolean): Promise<a
           }
         ],
         temperature: 0.1, // Lower temperature for more consistent JSON formatting
+        max_tokens: 1000,
       }),
     });
 
