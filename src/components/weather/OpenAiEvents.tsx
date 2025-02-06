@@ -12,7 +12,7 @@ export const OpenAiEvents = ({ isLoading, events }: OpenAiEventsProps) => {
     <div className="mt-8 pt-8 border-t border-gray-200">
       <h3 className="text-lg font-semibold mb-4">Additional Reported Events</h3>
       
-      {/* Show existing events even while loading more */}
+      {/* Always show events if they exist */}
       {events.length > 0 && (
         <>
           <p className="text-sm text-gray-500 mb-4">
@@ -50,7 +50,7 @@ export const OpenAiEvents = ({ isLoading, events }: OpenAiEventsProps) => {
         </>
       )}
 
-      {/* Show loading indicator while fetching initial or additional events */}
+      {/* Show loading state */}
       {isLoading && (
         <div className="mt-4 flex items-center justify-center space-x-2 text-sm text-gray-500">
           <Loader className="h-4 w-4 animate-spin" />
@@ -58,7 +58,7 @@ export const OpenAiEvents = ({ isLoading, events }: OpenAiEventsProps) => {
         </div>
       )}
 
-      {/* Only show "no events" message when not loading and no events exist */}
+      {/* Show no events message only when not loading and no events exist */}
       {!isLoading && events.length === 0 && (
         <Alert>
           <AlertDescription>
