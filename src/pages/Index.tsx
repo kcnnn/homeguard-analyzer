@@ -4,42 +4,62 @@ import { PolicyDetails } from '@/components/PolicyDetails';
 import { WeatherEvents } from '@/components/WeatherEvents';
 import { toast } from '@/components/ui/use-toast';
 import { supabase } from "@/integrations/supabase/client";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
 
 const Index = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [policyDetails, setPolicyDetails] = useState(null);
+  const [policyDetails, setPolicyDetails] = useState<any[]>([]);
   const [weatherEvents, setWeatherEvents] = useState([]);
 
-  const handleFileUpload = async (file: File) => {
-    // Validate file type
-    if (!['image/jpeg', 'image/png'].includes(file.type)) {
-      toast({
-        title: "Invalid File Type",
-        description: "Please upload only JPEG or PNG images.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+  const handleFileUpload = async (files: File[]) => {
     setIsAnalyzing(true);
+    const results = [];
+
     try {
-      // Convert the file to base64
-      const reader = new FileReader();
-      const base64Promise = new Promise((resolve, reject) => {
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-      });
-      reader.readAsDataURL(file);
-      const base64Image = await base64Promise;
+      for (const file of files) {
+        // Validate file type
+        if (!['image/jpeg', 'image/png'].includes(file.type)) {
+          toast({
+            title: "Invalid File Type",
+            description: `File "${file.name}" skipped. Please upload only JPEG or PNG images.`,
+            variant: "destructive",
+          });
+          continue;
+        }
 
-      // Call the Supabase Edge Function to analyze the policy
-      const { data, error } = await supabase.functions.invoke('analyze-policy', {
-        body: { base64Image },
-      });
+        // Convert the file to base64
+        const reader = new FileReader();
+        const base64Promise = new Promise((resolve, reject) => {
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+        });
+        reader.readAsDataURL(file);
+        const base64Image = await base64Promise;
 
-      if (error) throw error;
+        // Call the Supabase Edge Function to analyze the policy
+        const { data, error } = await supabase.functions.invoke('analyze-policy', {
+          body: { base64Image },
+        });
 
-      setPolicyDetails(data);
+        if (error) {
+          toast({
+            title: "Analysis Error",
+            description: `Failed to analyze "${file.name}". ${error.message}`,
+            variant: "destructive",
+          });
+          continue;
+        }
+
+        results.push(data);
+      }
+
+      setPolicyDetails(results);
       
       // For demo purposes, keeping the weather events mock data
       setWeatherEvents([
@@ -57,13 +77,13 @@ const Index = () => {
 
       toast({
         title: "Analysis Complete",
-        description: "Your policy has been successfully analyzed.",
+        description: `Successfully analyzed ${results.length} policy document(s).`,
       });
     } catch (error) {
-      console.error('Error analyzing policy:', error);
+      console.error('Error analyzing policies:', error);
       toast({
         title: "Error",
-        description: "Failed to analyze the policy. Please try again.",
+        description: "Failed to analyze the policies. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -79,7 +99,19 @@ const Index = () => {
         </h1>
         <div className="max-w-4xl mx-auto space-y-8">
           <FileUpload onFileUpload={handleFileUpload} />
-          <PolicyDetails isLoading={isAnalyzing} policyDetails={policyDetails} />
+          {policyDetails.length > 0 && (
+            <Carousel className="w-full">
+              <CarouselContent>
+                {policyDetails.map((details, index) => (
+                  <CarouselItem key={index}>
+                    <PolicyDetails isLoading={isAnalyzing} policyDetails={details} />
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+              <CarouselPrevious />
+              <CarouselNext />
+            </Carousel>
+          )}
           <WeatherEvents isLoading={isAnalyzing} events={weatherEvents} />
         </div>
       </div>
