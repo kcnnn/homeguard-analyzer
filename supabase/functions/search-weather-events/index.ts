@@ -111,15 +111,15 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4',
+          model: 'gpt-4o-mini',
           messages: [
             {
               role: 'system',
-              content: 'You are a weather researcher with internet access. Your task is to search the internet for recent weather events, especially from 2024, and verify the information before including it.'
+              content: 'You are a weather researcher. Your task is to search for and report significant hail and windstorm events. Format your response as a JSON array of events with dates, types (hail/wind), and details.'
             },
             {
               role: 'user',
-              content: `Search for significant hail and windstorm events that occurred at or near ${location} between ${effectiveDate} and ${expirationDate}. Return the response in this JSON format: { "events": [{ "date": "YYYY-MM-DD", "type": "hail"|"wind", "details": "string", "source": "string", "sourceUrl": "string" }] }`
+              content: `Search for significant hail and windstorm events that occurred at or near ${location} between ${effectiveDate} and ${expirationDate}. Return the response in this JSON format: { "events": [{ "date": "YYYY-MM-DD", "type": "hail"|"wind", "details": "string", "source": "Local Weather Report", "sourceUrl": "string" }] }`
             }
           ],
           temperature: 0.7,
@@ -145,6 +145,13 @@ serve(async (req) => {
       if (openAIResponse.choices?.[0]?.message?.content) {
         const parsed = JSON.parse(openAIResponse.choices[0].message.content);
         openAIEvents = parsed.events || [];
+        
+        // Ensure each OpenAI event has the required fields
+        openAIEvents = openAIEvents.map(event => ({
+          ...event,
+          source: event.source || 'AI Weather Report',
+          sourceUrl: event.sourceUrl || '#',
+        }));
       }
     } catch (error) {
       console.error('Error parsing OpenAI response:', error);
@@ -153,7 +160,7 @@ serve(async (req) => {
     console.log('Parsed OpenAI events:', openAIEvents);
     console.log('NOAA events:', noaaEvents);
 
-    const allEvents = [...openAIEvents, ...noaaEvents];
+    const allEvents = [...noaaEvents, ...openAIEvents];
 
     // Remove duplicates based on date and type
     const uniqueEvents = allEvents.reduce((acc: any[], event: any) => {
