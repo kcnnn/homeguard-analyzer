@@ -10,7 +10,6 @@ const corsHeaders = {
 };
 
 async function searchNOAAEvents(location: string, startDate: string, endDate: string) {
-  console.log('Starting NOAA search with params:', { location, startDate, endDate });
   
   try {
     // Format dates for NOAA API (YYYY-MM-DD)
@@ -115,36 +114,35 @@ serve(async (req) => {
           messages: [
             {
               role: 'system',
-              content: `You are a weather data researcher. Your task is to search for and report ONLY VERIFIED, FACTUAL hail and windstorm events from reliable news sources, weather reports, or meteorological databases. 
-              
-              Important guidelines:
-              - Only include events that you are confident actually occurred
-              - Do not generate or fabricate any events
-              - If you cannot find verified events, return an empty array
-              - Each event must include a real, verifiable source
-              - Focus on significant weather events that would be relevant for insurance claims`
+              content: `You are a weather data researcher specializing in hail and wind events. Search for and report VERIFIED weather events from reliable news sources, weather reports, or meteorological databases for the specified location and time period.
+
+              Guidelines:
+              - Focus on hail and severe wind events
+              - Include specific details about size of hail or wind speeds when available
+              - Include specific location details within the area
+              - Provide verifiable sources for each event
+              - If you find events, format them precisely with dates, measurements, and specific locations
+              - If no verified events are found, return an empty array`
             },
             {
               role: 'user',
-              content: `Search for verified hail and windstorm events that occurred at or near ${location} between ${effectiveDate} and ${expirationDate}. Only include events you can confirm from reliable sources.
-
-              Return the response in this JSON format: 
+              content: `Search for verified hail and windstorm events that occurred at or near ${location} between ${effectiveDate} and ${expirationDate}. 
+              
+              Return the response in this exact JSON format:
               {
                 "events": [
                   {
                     "date": "YYYY-MM-DD",
                     "type": "hail"|"wind",
-                    "details": "string describing the verified event",
-                    "source": "name of the reliable source",
+                    "details": "Detailed description including measurements and specific locations",
+                    "source": "Name of the source (e.g. KVUE News, Weather Service)",
                     "sourceUrl": "URL to the source if available"
                   }
                 ]
-              }
-              
-              If no verified events are found, return { "events": [] }`
+              }`
             }
           ],
-          temperature: 0.3, // Lower temperature for more factual responses
+          temperature: 0.3,
           response_format: { type: "json_object" },
         }),
       }).then(async res => {
@@ -167,33 +165,24 @@ serve(async (req) => {
     try {
       if (openAIResponse.choices?.[0]?.message?.content) {
         const parsed = JSON.parse(openAIResponse.choices[0].message.content);
-        if (!parsed.events || !Array.isArray(parsed.events)) {
-          console.error('Invalid OpenAI response format:', parsed);
-          throw new Error('Invalid response format from OpenAI');
+        if (parsed.events && Array.isArray(parsed.events)) {
+          openAIEvents = parsed.events.filter(event => {
+            const isValid = 
+              event.date && 
+              event.type && 
+              event.details && 
+              event.source && 
+              (event.type === 'hail' || event.type === 'wind');
+            
+            if (!isValid) {
+              console.warn('Filtered out invalid event:', event);
+            }
+            return isValid;
+          });
         }
-        
-        // Validate each event
-        openAIEvents = parsed.events.filter(event => {
-          const isValid = 
-            event.date && 
-            event.type && 
-            event.details && 
-            event.source && 
-            (event.type === 'hail' || event.type === 'wind');
-          
-          if (!isValid) {
-            console.warn('Filtered out invalid event:', event);
-          }
-          return isValid;
-        }).map(event => ({
-          ...event,
-          source: event.source || 'Weather Report',
-          sourceUrl: event.sourceUrl || '#',
-        }));
       }
     } catch (error) {
       console.error('Error parsing OpenAI response:', error);
-      throw new Error('Failed to parse OpenAI response');
     }
 
     console.log('Parsed OpenAI events:', openAIEvents);
