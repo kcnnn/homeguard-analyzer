@@ -78,8 +78,8 @@ export const WeatherEvents = ({ isLoading, events, location }: WeatherEventsProp
         )}
       </div>
 
-      {/* OpenAI Events Section */}
-      {noaaEvents.length === 0 && openaiEvents.length > 0 && (
+      {/* OpenAI Events Section - Always show if there are OpenAI events */}
+      {openaiEvents.length > 0 && (
         <div className="mt-8 pt-8 border-t border-gray-200">
           <h3 className="text-lg font-semibold mb-4">Additional Reported Events</h3>
           <p className="text-sm text-gray-500 mb-4">
