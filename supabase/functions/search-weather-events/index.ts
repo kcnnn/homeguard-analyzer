@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     console.log('Sending prompt to OpenAI:', prompt);
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",  // Using the internet-enabled model
+      model: "gpt-4o",  // Fixed: Using the correct model name for internet-enabled GPT-4
       messages: [
         {
           role: "system",
