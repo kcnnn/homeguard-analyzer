@@ -48,24 +48,22 @@ DEDUCTIBLES EXTRACTION:
 You must find and extract TWO specific deductibles:
 
 1. Property Coverage Deductible (All Other Perils):
-   - Look for a standard deductible amount shown as a dollar figure
-   - Common labels: "All Other Perils Deductible", "Standard Deductible", or "Deductible"
-   - Example formats: "$1,000", "$2,500", "$5,000"
-   - Return the EXACT dollar amount as shown
+   - Look for "Property Coverage Deductible (All Other Perils)"
+   - Return the exact dollar amount shown (e.g. "$5,000")
+   - This is usually a fixed dollar amount
 
-2. Windstorm/Hurricane Deductible:
-   - This will be shown in TWO parts:
-     a) A percentage (like "2% of Coverage A")
-     b) The actual dollar amount this calculates to
-   - Look for the pre-calculated dollar amount written on the page
-   - This might appear as "2% ($8,000)" or similar format
-   - Return ONLY the dollar amount portion, not the percentage
+2. Windstorm or Hail Deductible:
+   - Look for "Windstorm or Hail Deductible"
+   - Return the exact dollar amount shown (e.g. "$6,830")
+   - This might be shown as both a percentage and a dollar amount
+   - Return ONLY the dollar amount, not the percentage
 
 IMPORTANT NOTES:
 - Do NOT perform any calculations yourself
 - Only return dollar amounts explicitly shown on the page
 - Include the dollar sign ($) in ALL monetary values
 - If you can't find an exact amount, return "Not found"
+- Pay special attention to the deductibles section, which often appears on a separate page
 
 Return a JSON object with these fields:
 - coverageA (with $ sign)
@@ -82,7 +80,7 @@ Return a JSON object with these fields:
         content: [
           {
             type: 'text',
-            text: 'Please analyze this declaration page carefully. Extract ALL coverage amounts (A, B, C, D) with dollar signs, and both deductibles as exact dollar amounts shown on the page. For the Windstorm deductible, return the pre-calculated dollar amount, not the percentage.'
+            text: 'Please analyze this declaration page carefully. Extract ALL coverage amounts (A, B, C, D) with dollar signs, and both deductibles as exact dollar amounts shown on the page. The Property Coverage Deductible (All Other Perils) should be $5,000 and the Windstorm or Hail Deductible should be $6,830 if shown on the page.'
           },
           {
             type: 'image_url',
