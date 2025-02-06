@@ -19,26 +19,38 @@ interface PolicyDetails {
   expirationDate: string;
 }
 
-// Format the base64 image for OpenAI API
 const formatBase64Image = (base64Image: string): string => {
   return base64Image.replace(/^data:image\/[a-z]+;base64,/, '');
 };
 
-// Create the OpenAI API request body
 const createOpenAIRequest = (imageUrl: string) => {
   return {
     model: "gpt-4o",
     messages: [
       {
         role: 'system',
-        content: 'You are an expert insurance policy analyzer. Extract coverage information from the image and return it in a strict JSON format. Only include the following fields: coverageA, coverageB, coverageC, coverageD, deductible (for All Other Perils), windstormDeductible (for Windstorm or Hail), effectiveDate, and expirationDate. Use "Not found" if a value cannot be determined. For the windstormDeductible, if it is expressed as a percentage of Coverage A, calculate the actual amount. Return ONLY the JSON object, no additional text.'
+        content: `You are an expert insurance policy analyzer. Extract coverage information from the image and return it in a strict JSON format. Pay special attention to:
+        1. The Property Coverage Deductible (All Other Perils) - this is a fixed amount
+        2. The Windstorm or Hail Deductible - this might be expressed as a percentage of Coverage A
+        
+        Return ONLY a JSON object with these fields:
+        - coverageA
+        - coverageB
+        - coverageC
+        - coverageD
+        - deductible (for All Other Perils)
+        - windstormDeductible (for Windstorm or Hail)
+        - effectiveDate
+        - expirationDate
+        
+        Use "Not found" if a value cannot be determined. For monetary values, include the dollar sign. For the windstormDeductible, if it's expressed as a percentage of Coverage A, calculate and return the actual amount.`
       },
       {
         role: 'user',
         content: [
           {
             type: 'text',
-            text: 'Analyze this insurance policy declaration page and extract the coverage information in JSON format. Include both the standard deductible (All Other Perils) and the Windstorm/Hail deductible.'
+            text: 'Analyze this insurance policy declaration page and extract the coverage information in JSON format. Make sure to correctly identify both the standard deductible (All Other Perils) and the Windstorm/Hail deductible.'
           },
           {
             type: 'image_url',
@@ -53,7 +65,6 @@ const createOpenAIRequest = (imageUrl: string) => {
   };
 };
 
-// Call OpenAI API
 const callOpenAI = async (requestBody: any) => {
   console.log('Calling OpenAI API...');
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -74,7 +85,6 @@ const callOpenAI = async (requestBody: any) => {
   return response.json();
 };
 
-// Parse OpenAI response content
 const parseOpenAIResponse = (content: string): string => {
   console.log('Raw OpenAI response:', content);
   
@@ -111,7 +121,6 @@ const parseOpenAIResponse = (content: string): string => {
   }
 };
 
-// Format policy details
 const formatPolicyDetails = (rawDetails: any): PolicyDetails => {
   console.log('Formatting policy details:', rawDetails);
   
@@ -147,8 +156,11 @@ const formatPolicyDetails = (rawDetails: any): PolicyDetails => {
   return defaultDetails;
 };
 
-// Main request handler
-const handleRequest = async (req: Request) => {
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
   try {
     console.log('Starting policy analysis...');
     
@@ -208,13 +220,4 @@ const handleRequest = async (req: Request) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-};
-
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-  
-  return handleRequest(req);
 });
