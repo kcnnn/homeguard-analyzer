@@ -4,7 +4,7 @@ import { PolicyDetails } from '@/components/PolicyDetails';
 import { WeatherEvents } from '@/components/WeatherEvents';
 import { toast } from '@/components/ui/use-toast';
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Carousel,
   CarouselContent,
@@ -20,11 +20,14 @@ const Index = () => {
   const [location, setLocation] = useState<string>('');
   const [effectiveDate, setEffectiveDate] = useState<string>('');
   const [expirationDate, setExpirationDate] = useState<string>('');
+  const queryClient = useQueryClient();
 
   const { data: weatherEvents = [], isLoading: isLoadingEvents } = useQuery({
     queryKey: ['weather-events', location, effectiveDate, expirationDate],
     queryFn: async () => {
       if (!location || !effectiveDate || !expirationDate) return [];
+
+      console.log('Searching for weather events with params:', { location, effectiveDate, expirationDate });
 
       // First, search for new weather events using OpenAI
       try {
@@ -38,9 +41,21 @@ const Index = () => {
 
         if (response.error) {
           console.error('Error searching for weather events:', response.error);
+          toast({
+            title: "Error",
+            description: "Failed to search for weather events",
+            variant: "destructive",
+          });
+        } else {
+          console.log('Successfully searched for weather events:', response.data);
         }
       } catch (error) {
         console.error('Error calling search-weather-events function:', error);
+        toast({
+          title: "Error",
+          description: "Failed to search for weather events",
+          variant: "destructive",
+        });
       }
 
       // Then fetch all events from the database
@@ -62,6 +77,8 @@ const Index = () => {
         return [];
       }
 
+      console.log('Retrieved weather events:', data);
+
       return (data || []).map(event => {
         if (event.type !== 'hail' && event.type !== 'wind') {
           console.warn(`Invalid weather event type: ${event.type}, defaulting to 'wind'`);
@@ -82,8 +99,8 @@ const Index = () => {
 
   const handleFileUpload = async (files: File[]) => {
     setIsAnalyzing(true);
-    const results = [];
-
+    setPolicyDetails([]); // Clear existing policy details
+    
     try {
       const base64Images = await Promise.all(files.map(file => {
         return new Promise((resolve, reject) => {
@@ -107,8 +124,12 @@ const Index = () => {
         return;
       }
 
-      results.push(data);
+      // Clear previous data before setting new values
+      setLocation('');
+      setEffectiveDate('');
+      setExpirationDate('');
       
+      // Set new values and trigger weather events search
       if (data.location) {
         setLocation(data.location);
       }
@@ -119,7 +140,10 @@ const Index = () => {
         setExpirationDate(data.expirationDate);
       }
 
-      setPolicyDetails(results);
+      setPolicyDetails([data]);
+
+      // Invalidate the weather events query to force a refresh
+      queryClient.invalidateQueries({ queryKey: ['weather-events'] });
 
       toast({
         title: "Analysis Complete",
