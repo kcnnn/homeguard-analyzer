@@ -1,6 +1,6 @@
 import { Card } from '@/components/ui/card';
 
-interface WeatherEvent {
+export interface WeatherEvent {
   date: string;
   type: 'hail' | 'wind';
   details: string;

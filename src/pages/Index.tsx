@@ -13,6 +13,9 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 
+// Import the WeatherEvent type from the WeatherEvents component
+import type { WeatherEvent } from '@/components/WeatherEvents';
+
 const Index = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [policyDetails, setPolicyDetails] = useState<any[]>([]);
@@ -38,7 +41,22 @@ const Index = () => {
         return [];
       }
 
-      return data;
+      // Validate and transform the data to match WeatherEvent type
+      return (data || []).map(event => {
+        // Ensure type is either 'hail' or 'wind'
+        if (event.type !== 'hail' && event.type !== 'wind') {
+          console.warn(`Invalid weather event type: ${event.type}, defaulting to 'wind'`);
+          event.type = 'wind';
+        }
+
+        return {
+          date: event.date,
+          type: event.type as 'hail' | 'wind',
+          details: event.details,
+          source: event.source || undefined,
+          sourceUrl: event.source_url || undefined,
+        } satisfies WeatherEvent;
+      });
     },
     enabled: !!location,
   });
