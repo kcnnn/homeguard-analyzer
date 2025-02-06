@@ -26,7 +26,7 @@ const formatBase64Image = (base64Image: string): string => {
 // Create the OpenAI API request body
 const createOpenAIRequest = (imageUrl: string) => {
   return {
-    model: "gpt-4-vision-preview",
+    model: "gpt-4o", // Updated to use the correct model
     messages: [
       {
         role: 'system',
