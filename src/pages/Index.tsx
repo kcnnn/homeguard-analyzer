@@ -4,6 +4,7 @@ import { PolicyDetails } from '@/components/PolicyDetails';
 import { WeatherEvents } from '@/components/WeatherEvents';
 import { toast } from '@/components/ui/use-toast';
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from '@tanstack/react-query';
 import {
   Carousel,
   CarouselContent,
@@ -15,8 +16,32 @@ import {
 const Index = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [policyDetails, setPolicyDetails] = useState<any[]>([]);
-  const [weatherEvents, setWeatherEvents] = useState([]);
   const [location, setLocation] = useState<string>('');
+
+  const { data: weatherEvents = [], isLoading: isLoadingEvents } = useQuery({
+    queryKey: ['weather-events', location],
+    queryFn: async () => {
+      if (!location) return [];
+      const { data, error } = await supabase
+        .from('weather_events')
+        .select('*')
+        .eq('location', location)
+        .order('date', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching weather events:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch weather events",
+          variant: "destructive",
+        });
+        return [];
+      }
+
+      return data;
+    },
+    enabled: !!location,
+  });
 
   const handleFileUpload = async (files: File[]) => {
     setIsAnalyzing(true);
@@ -48,10 +73,7 @@ const Index = () => {
 
       results.push(data);
       
-      // Update weather events and location from the response
-      if (data.weatherEvents) {
-        setWeatherEvents(data.weatherEvents);
-      }
+      // Update location from the response
       if (data.location) {
         setLocation(data.location);
       }
@@ -96,7 +118,7 @@ const Index = () => {
             </Carousel>
           )}
           <WeatherEvents 
-            isLoading={isAnalyzing} 
+            isLoading={isLoadingEvents} 
             events={weatherEvents}
             location={location} 
           />
