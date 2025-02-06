@@ -34,25 +34,27 @@ const formatBase64Image = (base64Image: string): string => {
 };
 
 const createSystemPrompt = (): string => {
-  return `You are an expert insurance policy analyzer. Extract the following information from the policy declaration page and return it in a strict JSON format with these exact fields:
+  return `You are an expert insurance policy analyzer. Your task is to extract specific coverage amounts and dates from insurance policy declaration pages.
 
+Please return a JSON object with EXACTLY this structure and these field names:
 {
-  "coverageA": "Extract Coverage A - Dwelling amount (e.g. $341,500)",
-  "coverageB": "Extract Coverage B - Other Structures amount (e.g. $34,150)",
-  "coverageC": "Extract Coverage C - Personal Property amount (e.g. $170,750)",
-  "coverageD": "Extract Coverage D - Loss of Use amount (e.g. $68,300)",
+  "coverageA": "$XXX,XXX",
+  "coverageB": "$XX,XXX",
+  "coverageC": "$XX,XXX",
+  "coverageD": "$XX,XXX",
   "deductible": "$5,000",
   "windstormDeductible": "$6,830",
-  "effectiveDate": "Start date in MM/DD/YYYY format",
-  "expirationDate": "End date in MM/DD/YYYY format",
-  "location": "Full property address"
+  "effectiveDate": "MM/DD/YYYY",
+  "expirationDate": "MM/DD/YYYY",
+  "location": "Full address"
 }
 
-Important:
-- Include $ symbol for all coverage amounts
-- Use exact values found in the document for coverages A-D
-- The deductible values are fixed as shown
-- Return ONLY the JSON object, no additional text`;
+Important rules:
+1. Always include the $ symbol for coverage amounts
+2. Use the EXACT values found in the document for coverages A-D
+3. Format dates as MM/DD/YYYY
+4. The deductible values are fixed as shown above
+5. Return ONLY the JSON object, no additional text or explanations`;
 };
 
 const searchWeatherEvents = async (location: string, startDate: string, endDate: string): Promise<WeatherEvent[]> => {
@@ -133,7 +135,7 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: 'system',
@@ -144,7 +146,7 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
             content: [
               {
                 type: 'text',
-                text: 'Please analyze this insurance policy declaration page and extract the coverage amounts (A-D), dates, and location. Remember that the deductibles are fixed at $5,000 and $6,830.'
+                text: 'Extract the coverage amounts (A-D), dates, and location from this policy declaration page. Remember to format the response exactly as specified, with fixed deductibles of $5,000 and $6,830.'
               },
               {
                 type: 'image_url',
@@ -166,7 +168,7 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
     }
 
     const data = await response.json();
-    console.log('OpenAI API raw response:', JSON.stringify(data, null, 2));
+    console.log('OpenAI API response:', data);
     
     if (!data.choices?.[0]?.message?.content) {
       console.error('Invalid response structure:', data);
@@ -178,13 +180,21 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
     
     try {
       const parsedContent = JSON.parse(content);
-      console.log('Successfully parsed content:', parsedContent);
-      
-      // Validate required fields
+      console.log('Parsed content:', parsedContent);
+
+      // Validate all required fields are present and in correct format
       const requiredFields = ['coverageA', 'coverageB', 'coverageC', 'coverageD', 'location', 'effectiveDate', 'expirationDate'];
       for (const field of requiredFields) {
         if (!parsedContent[field]) {
           console.warn(`Missing required field: ${field}`);
+        }
+      }
+
+      // Validate coverage amounts have $ symbol
+      const coverageFields = ['coverageA', 'coverageB', 'coverageC', 'coverageD'];
+      for (const field of coverageFields) {
+        if (parsedContent[field] && !parsedContent[field].startsWith('$')) {
+          parsedContent[field] = `$${parsedContent[field]}`;
         }
       }
       
