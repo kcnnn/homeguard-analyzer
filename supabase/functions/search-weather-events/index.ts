@@ -17,13 +17,17 @@ async function searchNOAAEvents(location: string, startDate: string, endDate: st
     const formattedStartDate = new Date(startDate).toISOString().split('T')[0];
     const formattedEndDate = new Date(endDate).toISOString().split('T')[0];
 
-    // Extract coordinates from location string (assuming format includes city and state)
+    // Extract city and state from location string
     const locationParts = location.split(',');
     const city = locationParts[0].trim();
     const state = locationParts[1]?.trim().split(' ')[0];
 
-    const url = `https://www.ncdc.noaa.gov/cdo-web/api/v2/data?datasetid=GHCND&locationid=CITY:US&startdate=${formattedStartDate}&enddate=${formattedEndDate}&limit=1000`;
+    console.log('Formatted NOAA search params:', { city, state, formattedStartDate, formattedEndDate });
+
+    const url = `https://www.ncdc.noaa.gov/cdo-web/api/v2/data?datasetid=GHCND&locationid=FIPS:48&startdate=${formattedStartDate}&enddate=${formattedEndDate}&limit=1000`;
     
+    console.log('NOAA API URL:', url);
+
     const response = await fetch(url, {
       headers: {
         'token': noaaApiKey
@@ -31,7 +35,8 @@ async function searchNOAAEvents(location: string, startDate: string, endDate: st
     });
 
     if (!response.ok) {
-      console.error('NOAA API Error:', await response.text());
+      const errorText = await response.text();
+      console.error('NOAA API Error:', errorText);
       return [];
     }
 
@@ -42,7 +47,7 @@ async function searchNOAAEvents(location: string, startDate: string, endDate: st
     return data.results?.map((event: any) => ({
       date: event.date.split('T')[0],
       type: event.datatype.includes('WIND') ? 'wind' : 'hail',
-      details: `${event.datatype}: ${event.value} ${event.unit}`,
+      details: `${event.datatype}: ${event.value} ${event.unit || ''}`,
       source: 'NOAA National Weather Service',
       sourceUrl: 'https://www.ncdc.noaa.gov/stormevents/',
     })) || [];
@@ -80,7 +85,7 @@ serve(async (req) => {
             },
             {
               role: 'user',
-              content: `Search for significant hail and windstorm events that occurred at or near ${location} between ${effectiveDate} and ${expirationDate}.`
+              content: `Search for significant hail and windstorm events that occurred at or near ${location} between ${effectiveDate} and ${expirationDate}. Return the response in this JSON format: { "events": [{ "date": "YYYY-MM-DD", "type": "hail"|"wind", "details": "string", "source": "string", "sourceUrl": "string" }] }`
             }
           ],
           temperature: 0.7,
@@ -92,10 +97,15 @@ serve(async (req) => {
       searchNOAAEvents(location, effectiveDate, expirationDate)
     ]);
 
-    // Combine and deduplicate events
+    console.log('OpenAI Response:', openAIResponse);
+
+    // Parse OpenAI events
     const openAIEvents = openAIResponse.choices?.[0]?.message?.content
       ? JSON.parse(openAIResponse.choices[0].message.content).events
       : [];
+
+    console.log('Parsed OpenAI events:', openAIEvents);
+    console.log('NOAA events:', noaaEvents);
 
     const allEvents = [...openAIEvents, ...noaaEvents];
 
@@ -111,10 +121,10 @@ serve(async (req) => {
       return acc;
     }, []);
 
-    // Sort events by date
+    // Sort events by date (most recent first)
     uniqueEvents.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    console.log('Combined weather events:', uniqueEvents);
+    console.log('Final combined events:', uniqueEvents);
 
     return new Response(JSON.stringify({ success: true, events: uniqueEvents }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
