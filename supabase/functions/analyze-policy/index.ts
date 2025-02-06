@@ -53,7 +53,6 @@ Return ONLY a JSON object with the following structure, no additional text or fo
   "deductible": "$X,XXX",
   "windstormDeductible": "$X,XXX or X%"
 }`;
-}
 };
 
 const cleanJsonResponse = (content: string): any => {
@@ -86,7 +85,7 @@ const analyzeImageWithGPT = async (imageUrl: string, type: 'coverages' | 'deduct
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4-vision-preview',
+        model: 'gpt-4o',
         messages: [
           { role: 'system', content: createPrompt(type) },
           { 
