@@ -47,7 +47,7 @@ Required format:
 Important rules:
 1. ALL monetary values MUST include the $ symbol and commas for thousands
 2. ALL dates MUST be in MM/DD/YYYY format
-3. Return ONLY the JSON object, no additional text or explanations
+3. Return ONLY the JSON object, no additional text, no markdown formatting, no explanations
 4. If you cannot find a value, use "Not found" as the value
 5. The location MUST be the complete property address`;
 };
@@ -65,8 +65,18 @@ Required format:
 Important rules:
 1. The "deductible" field MUST be the All Other Perils (AOP) deductible amount with $ symbol
 2. The "windstormDeductible" field MUST be either a fixed amount with $ (e.g. "$2,500") or a percentage with % (e.g. "2%")
-3. Return ONLY the JSON object, no additional text or explanations
+3. Return ONLY the JSON object, no additional text, no markdown formatting, no explanations
 4. If you cannot find a value, use "Not found" as the value`;
+};
+
+const cleanJsonResponse = (content: string): string => {
+  // Remove any markdown formatting or additional text
+  const jsonStart = content.indexOf('{');
+  const jsonEnd = content.lastIndexOf('}');
+  if (jsonStart === -1 || jsonEnd === -1) {
+    throw new Error('No valid JSON object found in response');
+  }
+  return content.slice(jsonStart, jsonEnd + 1);
 };
 
 const analyzeImage = async (imageUrl: string, isDeductibles: boolean): Promise<any> => {
@@ -110,8 +120,10 @@ const analyzeImage = async (imageUrl: string, isDeductibles: boolean): Promise<a
       throw new Error('Invalid response structure from OpenAI');
     }
 
-    const content = data.choices[0].message.content.trim();
-    return JSON.parse(content);
+    const cleanedContent = cleanJsonResponse(data.choices[0].message.content);
+    console.log('Cleaned content:', cleanedContent);
+    
+    return JSON.parse(cleanedContent);
   } catch (error) {
     console.error(`Error analyzing image for ${isDeductibles ? 'deductibles' : 'coverages'}:`, error);
     throw error;
