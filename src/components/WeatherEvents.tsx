@@ -1,4 +1,5 @@
 import { Card } from '@/components/ui/card';
+import { Loader } from 'lucide-react';
 
 export interface WeatherEvent {
   date: string;
@@ -18,13 +19,9 @@ export const WeatherEvents = ({ isLoading, events, location }: WeatherEventsProp
   if (isLoading) {
     return (
       <Card className="w-full p-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-4 bg-gray-200 rounded w-1/4"></div>
-          <div className="space-y-2">
-            <div className="h-4 bg-gray-200 rounded w-full"></div>
-            <div className="h-4 bg-gray-200 rounded w-full"></div>
-            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-          </div>
+        <div className="flex flex-col items-center justify-center space-y-4">
+          <Loader className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Searching for weather events...</p>
         </div>
       </Card>
     );
