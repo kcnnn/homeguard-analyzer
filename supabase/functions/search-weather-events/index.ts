@@ -102,7 +102,7 @@ serve(async (req) => {
 
     // Get events from both sources in parallel
     const [openAIResponse, noaaEvents] = await Promise.all([
-      // Get events from OpenAI with improved prompt for factual results
+      // Get events from OpenAI
       fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -114,27 +114,17 @@ serve(async (req) => {
           messages: [
             {
               role: 'system',
-              content: `You are a weather data researcher with access to current and historical weather data. Search the internet for VERIFIED hail and severe wind events from reliable sources such as:
-              - Local news stations and weather reports
-              - Weather service bulletins
-              - Meteorological databases
-              - Storm tracking services
-              - Official weather alerts and warnings
-              
-              Guidelines:
-              - Focus only on hail and severe wind events
-              - Only include events with specific, verifiable details
-              - Include measurements of hail size or wind speeds when available
-              - Provide direct source links to news articles or weather reports
-              - Consider events within a 10-mile radius of the specified location
-              - For future dates, only include officially issued severe weather warnings
-              - If no verified events are found, return an empty array`
+              content: `You are a weather researcher. Search the internet for verified hail and severe wind events that occurred at or near the specified location. Focus on:
+              - Exact dates and locations
+              - Specific hail sizes (in inches) and wind speeds
+              - Verified reports from news stations, weather services, and storm tracking sites
+              - Events within a 10-mile radius of the location
+              - Include source URLs for verification
+              Only return events that have specific, verifiable details from reliable sources.`
             },
             {
               role: 'user',
-              content: `Using real-time and historical weather data sources, search for verified hail and windstorm events that occurred or are officially predicted to occur at or near ${location} between ${effectiveDate} and ${expirationDate}.
-              
-              Return the response in this exact JSON format:
+              content: `Tell me about verified hail and severe wind events that occurred at or near ${location} between ${effectiveDate} and ${expirationDate}. Return the response in this exact JSON format:
               {
                 "events": [
                   {
@@ -142,7 +132,7 @@ serve(async (req) => {
                     "type": "hail"|"wind",
                     "details": "Detailed description including measurements and specific locations",
                     "source": "Name of the source (e.g. KVUE News, Weather Service)",
-                    "sourceUrl": "URL to the source if available"
+                    "sourceUrl": "URL to the source"
                   }
                 ]
               }`
@@ -160,43 +150,27 @@ serve(async (req) => {
         return res.json();
       }),
       
-      // Get events from NOAA (only for past dates)
+      // Get events from NOAA
       searchNOAAEvents(location, effectiveDate, expirationDate)
     ]);
 
     console.log('OpenAI Response:', JSON.stringify(openAIResponse, null, 2));
 
-    // Parse OpenAI events with better validation
+    // Parse OpenAI events
     let openAIEvents = [];
     try {
       if (openAIResponse.choices?.[0]?.message?.content) {
         const parsed = JSON.parse(openAIResponse.choices[0].message.content);
         if (parsed.events && Array.isArray(parsed.events)) {
-          openAIEvents = parsed.events.filter(event => {
-            const isValid = 
-              event.date && 
-              event.type && 
-              event.details && 
-              event.source && 
-              (event.type === 'hail' || event.type === 'wind');
-            
-            if (!isValid) {
-              console.warn('Filtered out invalid event:', event);
-            }
-            return isValid;
-          });
+          openAIEvents = parsed.events;
         }
       }
     } catch (error) {
       console.error('Error parsing OpenAI response:', error);
     }
 
-    console.log('Parsed OpenAI events:', openAIEvents);
-    console.log('NOAA events:', noaaEvents);
-
+    // Combine and sort events
     const allEvents = [...noaaEvents, ...openAIEvents];
-
-    // Remove duplicates based on date and type
     const uniqueEvents = allEvents.reduce((acc: any[], event: any) => {
       const isDuplicate = acc.some(e => 
         e.date === event.date && 
@@ -208,7 +182,7 @@ serve(async (req) => {
       return acc;
     }, []);
 
-    // Sort events by date (most recent first)
+    // Sort by date (most recent first)
     uniqueEvents.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     console.log('Final combined events:', uniqueEvents);
