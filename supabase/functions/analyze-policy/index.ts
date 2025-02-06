@@ -31,9 +31,7 @@ interface PolicyDetails {
 
 const createSystemPromptForCoverages = (): string => {
   return `You are an expert insurance policy analyzer. Extract coverage amounts and dates from insurance policy declaration pages.
-Please analyze this insurance policy declaration page and extract ONLY the following information in a strict JSON format.
-
-Required format:
+Return ONLY a JSON object with the following structure, no additional text or formatting:
 {
   "coverageA": "$XXX,XXX",
   "coverageB": "$XX,XXX",
@@ -42,38 +40,23 @@ Required format:
   "effectiveDate": "MM/DD/YYYY",
   "expirationDate": "MM/DD/YYYY",
   "location": "Full property address"
-}
-
-Important rules:
-1. ALL monetary values MUST include the $ symbol and commas for thousands
-2. ALL dates MUST be in MM/DD/YYYY format
-3. Return ONLY the JSON object, no additional text, no markdown formatting, no explanations
-4. If you cannot find a value, use "Not found" as the value
-5. The location MUST be the complete property address`;
+}`;
 };
 
 const createSystemPromptForDeductibles = (): string => {
-  return `You are an expert insurance policy analyzer. Extract ONLY the deductible information from insurance policy declaration pages.
-Please analyze this insurance policy declaration page and extract ONLY the following information in a strict JSON format.
-
-Required format:
+  return `You are an expert insurance policy analyzer. Extract ONLY the deductible information.
+Return ONLY a JSON object with the following structure, no additional text or formatting:
 {
   "deductible": "$X,XXX",
   "windstormDeductible": "$X,XXX or X%"
-}
-
-Important rules:
-1. The "deductible" field MUST be the All Other Perils (AOP) deductible amount with $ symbol
-2. The "windstormDeductible" field MUST be either a fixed amount with $ (e.g. "$2,500") or a percentage with % (e.g. "2%")
-3. Return ONLY the JSON object, no additional text, no markdown formatting, no explanations
-4. If you cannot find a value, use "Not found" as the value`;
+}`;
 };
 
 const cleanJsonResponse = (content: string): string => {
   console.log('Raw content from OpenAI:', content);
   
-  // Remove any markdown code block indicators
-  content = content.replace(/```json\n|\n```/g, '');
+  // Remove any markdown code block indicators and whitespace
+  content = content.trim().replace(/```json\n|\n```|```/g, '');
   
   // Find the first { and last }
   const jsonStart = content.indexOf('{');
@@ -89,7 +72,8 @@ const cleanJsonResponse = (content: string): string => {
   
   // Validate that it's actually valid JSON
   try {
-    JSON.parse(extractedJson);
+    const parsed = JSON.parse(extractedJson);
+    console.log('Successfully parsed JSON:', parsed);
     return extractedJson;
   } catch (error) {
     console.error('Failed to parse extracted JSON:', error);
@@ -108,7 +92,7 @@ const analyzeImage = async (imageUrl: string, isDeductibles: boolean): Promise<a
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
@@ -124,6 +108,7 @@ const analyzeImage = async (imageUrl: string, isDeductibles: boolean): Promise<a
             ]
           }
         ],
+        temperature: 0.1, // Lower temperature for more consistent JSON formatting
       }),
     });
 
@@ -132,17 +117,14 @@ const analyzeImage = async (imageUrl: string, isDeductibles: boolean): Promise<a
     }
 
     const data = await response.json();
-    console.log('OpenAI response:', JSON.stringify(data, null, 2));
+    console.log('OpenAI API response:', JSON.stringify(data, null, 2));
     
     if (!data.choices?.[0]?.message?.content) {
       throw new Error('Invalid response structure from OpenAI');
     }
 
     const cleanedContent = cleanJsonResponse(data.choices[0].message.content);
-    const parsedContent = JSON.parse(cleanedContent);
-    console.log('Successfully parsed content:', parsedContent);
-    
-    return parsedContent;
+    return JSON.parse(cleanedContent);
   } catch (error) {
     console.error(`Error analyzing image for ${isDeductibles ? 'deductibles' : 'coverages'}:`, error);
     throw error;
