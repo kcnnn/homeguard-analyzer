@@ -14,7 +14,7 @@ export async function searchOpenAIEvents(
     return [];
   }
 
-  console.log('Starting OpenAI search for weather events with web browsing enabled');
+  console.log('Starting OpenAI search for weather events');
   console.log('Location:', location);
   console.log('Time period:', { startDate, endDate });
 
@@ -22,23 +22,36 @@ export async function searchOpenAIEvents(
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_DURATION);
 
   try {
-    const options: OpenAIRequestOptions = {
-      location,
-      startDate,
-      endDate,
-      signal: controller.signal
-    };
-
     const response = await fetch(
       'https://api.openai.com/v1/chat/completions',
-      createFetchOptions(openAIApiKey, options)
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: `You are a weather research assistant. Search for and report hail or severe wind events near ${location} between ${startDate} and ${endDate}. Include dates, sizes for hail, speeds for wind, and any damage reports. Return only JSON in this format: {"events": [{"date": "YYYY-MM-DD", "type": "hail|wind", "details": "description", "source": "optional source", "sourceUrl": "optional url"}]}`
+            }
+          ],
+          temperature: 0.7,
+          tools: [{ "type": "retrieval" }],
+          tool_choice: "auto"
+        })
+      }
     );
 
     clearTimeout(timeoutId);
 
     if (!response.ok) {
       console.error('OpenAI API error:', response.status);
-      console.error('Response:', await response.text());
+      const errorText = await response.text();
+      console.error('Response:', errorText);
       return [];
     }
 
