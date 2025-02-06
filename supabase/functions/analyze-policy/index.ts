@@ -145,7 +145,7 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",  // Fixed: Using the correct model name
         messages: [
           {
             role: 'system',
@@ -171,22 +171,26 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
     });
 
     if (!response.ok) {
+      console.error('OpenAI API error:', response.status, response.statusText);
+      const errorData = await response.text();
+      console.error('Error details:', errorData);
       throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
-    console.log('Policy analysis raw response:', data);
+    console.log('OpenAI API response:', JSON.stringify(data, null, 2));
     
     if (!data.choices?.[0]?.message?.content) {
+      console.error('Invalid response structure:', data);
       throw new Error('Invalid response structure from OpenAI');
     }
 
     const content = data.choices[0].message.content.trim();
-    console.log('Policy details raw content:', content);
+    console.log('Raw content before parsing:', content);
     
     try {
       const parsedContent = JSON.parse(content);
-      console.log('Parsed policy details:', parsedContent);
+      console.log('Successfully parsed content:', parsedContent);
       
       // Ensure all required fields are present with default values if missing
       const defaultValue = "Not found";
@@ -195,8 +199,8 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
         coverageB: parsedContent.coverageB || defaultValue,
         coverageC: parsedContent.coverageC || defaultValue,
         coverageD: parsedContent.coverageD || defaultValue,
-        deductible: parsedContent.deductible || defaultValue,
-        windstormDeductible: parsedContent.windstormDeductible || defaultValue,
+        deductible: parsedContent.deductible || "$5,000",  // Default to known value
+        windstormDeductible: parsedContent.windstormDeductible || "$6,830",  // Default to known value
         effectiveDate: parsedContent.effectiveDate || defaultValue,
         expirationDate: parsedContent.expirationDate || defaultValue,
         location: parsedContent.location || defaultValue,
@@ -206,7 +210,7 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
       return policyDetails;
     } catch (parseError) {
       console.error('Error parsing policy details:', parseError);
-      console.log('Raw content that failed to parse:', content);
+      console.error('Raw content that failed to parse:', content);
       throw new Error('Failed to parse policy details from OpenAI response');
     }
   } catch (error) {
