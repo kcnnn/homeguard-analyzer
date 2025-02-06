@@ -154,16 +154,26 @@ serve(async (req) => {
       searchNOAAEvents(location, effectiveDate, expirationDate)
     ]);
 
-    console.log('OpenAI Response:', JSON.stringify(openAIResponse, null, 2));
+    console.log('Raw OpenAI Response:', JSON.stringify(openAIResponse, null, 2));
 
-    // Parse OpenAI events
+    // Parse OpenAI events with better error handling
     let openAIEvents = [];
     try {
       if (openAIResponse.choices?.[0]?.message?.content) {
-        const parsed = JSON.parse(openAIResponse.choices[0].message.content);
+        const content = openAIResponse.choices[0].message.content;
+        console.log('OpenAI content:', content);
+        
+        const parsed = JSON.parse(content);
+        console.log('Parsed OpenAI response:', parsed);
+        
         if (parsed.events && Array.isArray(parsed.events)) {
           openAIEvents = parsed.events;
+          console.log('Extracted OpenAI events:', openAIEvents);
+        } else {
+          console.log('No events array found in parsed response');
         }
+      } else {
+        console.log('No content found in OpenAI response');
       }
     } catch (error) {
       console.error('Error parsing OpenAI response:', error);
@@ -171,6 +181,8 @@ serve(async (req) => {
 
     // Combine and sort events
     const allEvents = [...noaaEvents, ...openAIEvents];
+    console.log('Combined events before deduplication:', allEvents);
+    
     const uniqueEvents = allEvents.reduce((acc: any[], event: any) => {
       const isDuplicate = acc.some(e => 
         e.date === event.date && 
@@ -185,7 +197,7 @@ serve(async (req) => {
     // Sort by date (most recent first)
     uniqueEvents.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    console.log('Final combined events:', uniqueEvents);
+    console.log('Final events being returned:', uniqueEvents);
 
     return new Response(JSON.stringify({ success: true, events: uniqueEvents }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
