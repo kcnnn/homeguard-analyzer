@@ -13,12 +13,18 @@ const Index = () => {
   const handleFileUpload = async (file: File) => {
     setIsAnalyzing(true);
     try {
-      // Create a temporary URL for the uploaded file
-      const imageUrl = URL.createObjectURL(file);
+      // Convert the file to base64
+      const reader = new FileReader();
+      const base64Promise = new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+      });
+      reader.readAsDataURL(file);
+      const base64Image = await base64Promise;
 
       // Call the Supabase Edge Function to analyze the policy
       const { data, error } = await supabase.functions.invoke('analyze-policy', {
-        body: { imageUrl },
+        body: { base64Image },
       });
 
       if (error) throw error;

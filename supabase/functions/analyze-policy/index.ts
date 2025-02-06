@@ -1,7 +1,10 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
 
 const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+const supabaseUrl = Deno.env.get('SUPABASE_URL');
+const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,7 +18,13 @@ serve(async (req) => {
   }
 
   try {
-    const { imageUrl } = await req.json();
+    const { base64Image } = await req.json();
+
+    if (!base64Image) {
+      throw new Error('No image data provided');
+    }
+
+    console.log('Received image data, sending to OpenAI...');
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -24,7 +33,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
@@ -35,7 +44,9 @@ serve(async (req) => {
             content: [
               {
                 type: 'image',
-                image_url: imageUrl
+                image_url: {
+                  url: base64Image
+                }
               },
               {
                 type: 'text',
@@ -52,7 +63,6 @@ serve(async (req) => {
 
     let policyDetails;
     try {
-      // Parse the response to extract structured data
       const content = data.choices[0].message.content;
       policyDetails = JSON.parse(content);
     } catch (error) {
