@@ -12,8 +12,8 @@ interface WeatherEvent {
   date: string;
   type: 'hail' | 'wind';
   details: string;
-  source: string;
-  sourceUrl: string;
+  source?: string;
+  sourceUrl?: string;
 }
 
 interface PolicyDetails {
@@ -34,7 +34,7 @@ const formatBase64Image = (base64Image: string): string => {
 };
 
 const createSystemPrompt = (): string => {
-  return `You are an expert insurance policy analyzer. Extract coverage amounts, deductibles, dates, and location accurately.
+  return `You are an expert insurance policy analyzer. Extract coverage amounts, deductibles, dates, and location accurately. Return ONLY raw JSON without any markdown formatting or code blocks.
 
 COVERAGE AMOUNTS EXTRACTION:
 You must find and extract the exact dollar amounts for:
@@ -69,57 +69,34 @@ Extract:
 - Policy effective date
 - Policy expiration date
 
-Return a JSON object with these fields:
-- coverageA (with $ sign)
-- coverageB (with $ sign)
-- coverageC (with $ sign)
-- coverageD (with $ sign)
-- deductible (exact All Other Perils amount with $ sign)
-- windstormDeductible (exact calculated amount with $ sign)
-- effectiveDate
-- expirationDate
-- location (full property address)`;
-};
-
-const createOpenAIRequest = (imageUrl: string) => {
-  return {
-    model: "gpt-4o",
-    messages: [
-      {
-        role: 'system',
-        content: createSystemPrompt()
-      },
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: 'Please analyze this declaration page carefully. Extract ALL coverage amounts (A, B, C, D) with dollar signs, both deductibles as exact dollar amounts, and the property location and policy dates.'
-          },
-          {
-            type: 'image_url',
-            image_url: {
-              url: imageUrl
-            }
-          }
-        ]
-      }
-    ],
-    max_tokens: 1000,
-  };
+Return a raw JSON object (no markdown, no code blocks) with these fields:
+{
+  "coverageA": "(with $ sign)",
+  "coverageB": "(with $ sign)",
+  "coverageC": "(with $ sign)",
+  "coverageD": "(with $ sign)",
+  "deductible": "(exact All Other Perils amount with $ sign)",
+  "windstormDeductible": "(exact calculated amount with $ sign)",
+  "effectiveDate": "(date)",
+  "expirationDate": "(date)",
+  "location": "(full property address)"
+}`;
 };
 
 const searchWeatherEvents = async (location: string, startDate: string, endDate: string): Promise<WeatherEvent[]> => {
   const prompt = `Search for weather events (hail and high winds over 50mph) at this location: ${location} between ${startDate} and ${endDate}.
-  Use sources like NOAA Storm Events Database (https://www.ncdc.noaa.gov/stormevents/) or Weather Underground.
+  Use sources like NOAA Storm Events Database or Weather Underground.
+  Return ONLY raw JSON array without any markdown formatting or code blocks.
   Format each event as:
-  - Date: [date]
-  - Type: [hail or wind]
-  - Details: [brief description]
-  - Source: [website name]
-  - URL: [direct link to event report if available, or main source URL]
+  {
+    "date": "YYYY-MM-DD",
+    "type": "hail" or "wind",
+    "details": "brief description",
+    "source": "website name",
+    "sourceUrl": "direct link to event report if available, or main source URL"
+  }
   
-  Return as JSON array of events. If no events found, return empty array.`;
+  If no events found, return empty array: []`;
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -133,7 +110,7 @@ const searchWeatherEvents = async (location: string, startDate: string, endDate:
         messages: [
           {
             role: "system",
-            content: "You are a weather research assistant. Search historical weather databases and return verified weather events in JSON format."
+            content: "You are a weather research assistant. Search historical weather databases and return verified weather events in raw JSON format without any markdown or code blocks."
           },
           {
             role: "user",
@@ -148,7 +125,9 @@ const searchWeatherEvents = async (location: string, startDate: string, endDate:
     console.log('Weather search response:', data);
     
     const content = data.choices[0].message.content;
-    return JSON.parse(content);
+    // Clean up any potential markdown formatting
+    const cleanJson = content.replace(/```json\n|\n```|```/g, '').trim();
+    return JSON.parse(cleanJson);
   } catch (error) {
     console.error('Error searching weather events:', error);
     return [];
@@ -164,7 +143,31 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
       'Authorization': `Bearer ${openAIApiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(createOpenAIRequest(imageUrl)),
+    body: JSON.stringify({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: 'system',
+          content: createSystemPrompt()
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Please analyze this declaration page carefully. Extract ALL coverage amounts (A, B, C, D) with dollar signs, both deductibles as exact dollar amounts, and the property location and policy dates. Return ONLY raw JSON without any markdown formatting.'
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: imageUrl
+              }
+            }
+          ]
+        }
+      ],
+      max_tokens: 1000,
+    }),
   });
 
   if (!response.ok) {
@@ -180,7 +183,10 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
     throw new Error('Invalid response structure from OpenAI');
   }
 
-  return JSON.parse(data.choices[0].message.content.trim());
+  // Clean up any potential markdown formatting
+  const content = data.choices[0].message.content;
+  const cleanJson = content.replace(/```json\n|\n```|```/g, '').trim();
+  return JSON.parse(cleanJson);
 };
 
 serve(async (req) => {
