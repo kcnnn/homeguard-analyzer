@@ -114,23 +114,25 @@ serve(async (req) => {
           messages: [
             {
               role: 'system',
-              content: `You are a weather data researcher specializing in hail and wind events. Search for and report VERIFIED weather events from reliable news sources, weather reports, or meteorological databases for the specified location and time period.
-
+              content: `You are a weather data researcher with access to current and historical weather data. Search the internet for VERIFIED hail and severe wind events from reliable sources such as:
+              - Local news stations and weather reports
+              - Weather service bulletins
+              - Meteorological databases
+              - Storm tracking services
+              - Official weather alerts and warnings
+              
               Guidelines:
-              - Focus on hail and severe wind events
-              - Include specific details about size of hail or wind speeds when available
-              - Include specific location details within the area
-              - Provide verifiable sources for each event
-              - Format events precisely with dates, measurements, and specific locations
-              - For future dates, include officially predicted severe weather events
+              - Focus only on hail and severe wind events
+              - Only include events with specific, verifiable details
+              - Include measurements of hail size or wind speeds when available
+              - Provide direct source links to news articles or weather reports
               - Consider events within a 10-mile radius of the specified location
+              - For future dates, only include officially issued severe weather warnings
               - If no verified events are found, return an empty array`
             },
             {
               role: 'user',
-              content: `Search for verified hail and windstorm events that occurred or are predicted to occur at or near ${location} between ${effectiveDate} and ${expirationDate}. Include both historical events and officially predicted severe weather events within this time period.
-
-              For example, there was a predicted hailstorm for April 9, 2024 with reports of hailstones up to 3 inches in diameter in Austin areas, including golf ball-sized hail at KVUE studios and tennis ball-sized hail near Mopac.
+              content: `Using real-time and historical weather data sources, search for verified hail and windstorm events that occurred or are officially predicted to occur at or near ${location} between ${effectiveDate} and ${expirationDate}.
               
               Return the response in this exact JSON format:
               {
