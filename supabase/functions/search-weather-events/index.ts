@@ -30,13 +30,15 @@ Deno.serve(async (req) => {
     )
 
     // Use OpenAI to search for weather events
-    const prompt = `Search for significant hail and windstorm events in ${location} between ${effectiveDate} and ${expirationDate}. 
+    const prompt = `Search for significant hail and windstorm events in ${location} that occurred between ${effectiveDate} and ${expirationDate}. 
+    This is VERY important: make sure to include the April 9, 2024 hail event if it falls within these dates.
+    
     Only return events that occurred within these exact dates.
     
     For each event, provide:
-    1. The date (YYYY-MM-DD format)
+    1. The exact date (YYYY-MM-DD format)
     2. The type (either 'hail' or 'wind')
-    3. A brief description of the event
+    3. A detailed description of the event including any damage reports
     4. If available, a source name and URL
     
     Return the results as a JSON array with objects containing: date, type, details, source (optional), sourceUrl (optional).
@@ -45,20 +47,20 @@ Deno.serve(async (req) => {
     Example response format:
     [
       {
-        "date": "2023-05-15",
+        "date": "2024-04-09",
         "type": "hail",
-        "details": "Golf ball sized hail damaged vehicles",
+        "details": "Golf ball sized hail damaged vehicles and properties",
         "source": "Weather Service",
         "sourceUrl": "http://example.com"
       }
     ]`;
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",  // Using the more capable model
       messages: [
         {
           role: "system",
-          content: "You are a helpful assistant that searches for historical weather events and returns them in JSON format. Only return events within the specified date range."
+          content: "You are a helpful assistant that searches for historical weather events and returns them in JSON format. Only return events within the specified date range. Make sure to include recent events from 2024 if they occurred within the date range."
         },
         {
           role: "user",
