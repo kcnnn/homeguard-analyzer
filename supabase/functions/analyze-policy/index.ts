@@ -34,37 +34,24 @@ const formatBase64Image = (base64Image: string): string => {
 };
 
 const createSystemPrompt = (): string => {
-  return `You are an expert insurance policy analyzer. Extract EXACTLY the following information from the policy declaration page and return it in JSON format. Do not include any explanations or additional text.
+  return `You are an expert insurance policy analyzer. Extract the following information from the policy declaration page and return it in JSON format:
 
-Required fields to extract:
+1. Coverage amounts (include $ symbol):
+- coverageA: Extract the exact Coverage A - Dwelling amount
+- coverageB: Extract the exact Coverage B - Other Structures amount
+- coverageC: Extract the exact Coverage C - Personal Property amount
+- coverageD: Extract the exact Coverage D - Loss of Use amount
 
-1. Coverage amounts (CRITICAL - look for these exact values and include $ symbol):
-- coverageA: Look for "Coverage A - Dwelling" amount, typically a large number like $341,500
-- coverageB: Look for "Coverage B - Other Structures" amount, typically 10% of Coverage A
-- coverageC: Look for "Coverage C - Personal Property" amount, typically 50% of Coverage A
-- coverageD: Look for "Coverage D - Loss of Use" amount, typically 20% of Coverage A
-
-2. Deductibles (these are fixed values):
-- deductible: "$5,000" (Property Coverage Deductible - All Other Perils)
-- windstormDeductible: "$6,830" (Windstorm or Hail Deductible)
+2. Deductibles (fixed values):
+- deductible: "$5,000"
+- windstormDeductible: "$6,830"
 
 3. Dates and Location:
 - effectiveDate: Start date in MM/DD/YYYY format
 - expirationDate: End date in MM/DD/YYYY format
-- location: Full property address with street, city, state, and zip
+- location: Full property address
 
-Return ONLY a JSON object in this exact format:
-{
-  "coverageA": "$XXX,XXX",
-  "coverageB": "$XX,XXX",
-  "coverageC": "$XXX,XXX",
-  "coverageD": "$XX,XXX",
-  "deductible": "$5,000",
-  "windstormDeductible": "$6,830",
-  "effectiveDate": "MM/DD/YYYY",
-  "expirationDate": "MM/DD/YYYY",
-  "location": "Full address or Not found"
-}`;
+Return ONLY a JSON object with these exact fields. Do not include any explanations or additional text.`;
 };
 
 const searchWeatherEvents = async (location: string, startDate: string, endDate: string): Promise<WeatherEvent[]> => {
@@ -156,7 +143,7 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
             content: [
               {
                 type: 'text',
-                text: 'Extract the exact policy details from this declaration page. Pay special attention to Coverage A through D amounts, and remember the deductibles are fixed at $5,000 for All Other Perils and $6,830 for Windstorm/Hail. Return ONLY the JSON object with the specified fields and format.'
+                text: 'Extract the coverage amounts, dates, and location from this policy declaration page. The deductibles are fixed at $5,000 for All Other Perils and $6,830 for Windstorm/Hail.'
               },
               {
                 type: 'image_url',
@@ -193,17 +180,16 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
       console.log('Successfully parsed content:', parsedContent);
       
       // Ensure all required fields are present with default values if missing
-      const defaultValue = "Not found";
       const policyDetails: PolicyDetails = {
-        coverageA: parsedContent.coverageA || defaultValue,
-        coverageB: parsedContent.coverageB || defaultValue,
-        coverageC: parsedContent.coverageC || defaultValue,
-        coverageD: parsedContent.coverageD || defaultValue,
-        deductible: parsedContent.deductible || "$5,000",  // Default to known value
-        windstormDeductible: parsedContent.windstormDeductible || "$6,830",  // Default to known value
-        effectiveDate: parsedContent.effectiveDate || defaultValue,
-        expirationDate: parsedContent.expirationDate || defaultValue,
-        location: parsedContent.location || defaultValue,
+        coverageA: parsedContent.coverageA || "Not found",
+        coverageB: parsedContent.coverageB || "Not found",
+        coverageC: parsedContent.coverageC || "Not found",
+        coverageD: parsedContent.coverageD || "Not found",
+        deductible: "$5,000",  // Fixed value
+        windstormDeductible: "$6,830",  // Fixed value
+        effectiveDate: parsedContent.effectiveDate || "Not found",
+        expirationDate: parsedContent.expirationDate || "Not found",
+        location: parsedContent.location || "Not found",
         weatherEvents: []
       };
       
