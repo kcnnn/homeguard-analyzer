@@ -113,7 +113,7 @@ const analyzeImage = async (imageUrl: string, isDeductibles: boolean): Promise<a
             ]
           }
         ],
-        temperature: 0.1, // Lower temperature for more consistent JSON formatting
+        temperature: 0.1,
         max_tokens: 1000,
       }),
     });
