@@ -24,20 +24,23 @@ async function searchNOAAEvents(location: string, startDate: string, endDate: st
     if (location.includes(',')) {
       const parts = location.split(',').map(part => part.trim());
       
-      // Last part should contain state and possibly ZIP
-      const lastPart = parts[parts.length - 1];
-      const stateMatch = lastPart.match(/([A-Z]{2})/);
-      if (stateMatch) {
-        state = stateMatch[1];
-      }
-
-      // Second to last part should be the city
-      if (parts.length > 1) {
-        city = parts[parts.length - 2].trim();
-      }
-
       // First part is the street
       street = parts[0];
+
+      // Second part should be the city
+      if (parts.length > 1) {
+        city = parts[1].trim();
+      }
+
+      // Last part should contain state and possibly ZIP
+      if (parts.length > 2) {
+        const lastPart = parts[parts.length - 1];
+        // Match state abbreviation (2 uppercase letters)
+        const stateMatch = lastPart.match(/([A-Z]{2})/);
+        if (stateMatch) {
+          state = stateMatch[1];
+        }
+      }
 
       console.log('Parsed address components:', { street, city, state });
     }
@@ -117,7 +120,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o',
+          model: 'gpt-4o-mini',
           messages: [
             {
               role: 'system',
