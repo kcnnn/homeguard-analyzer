@@ -17,19 +17,73 @@ interface PolicyDetails {
   windstormDeductible: string;
   effectiveDate: string;
   expirationDate: string;
+  weatherEvents: WeatherEvent[];
+}
+
+interface WeatherEvent {
+  date: string;
+  type: 'hail' | 'wind';
+  details: string;
+  source: string;
+  sourceUrl: string;
 }
 
 const formatBase64Image = (base64Image: string): string => {
   return base64Image.replace(/^data:image\/[a-z]+;base64,/, '');
 };
 
+const searchWeatherEvents = async (location: string, startDate: string, endDate: string) => {
+  const prompt = `Search for weather events (hail and high winds over 50mph) at this location: ${location} between ${startDate} and ${endDate}.
+  Use sources like NOAA Storm Events Database (https://www.ncdc.noaa.gov/stormevents/) or Weather Underground.
+  Format each event as:
+  - Date: [date]
+  - Type: [hail or wind]
+  - Details: [brief description]
+  - Source: [website name]
+  - URL: [direct link to event report if available, or main source URL]
+  
+  Return as JSON array of events. If no events found, return empty array.`;
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openAIApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: "gpt-4",
+      messages: [
+        {
+          role: "system",
+          content: "You are a weather research assistant. Search historical weather databases and return verified weather events in JSON format."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      temperature: 0.7
+    })
+  });
+
+  const data = await response.json();
+  try {
+    const content = data.choices[0].message.content;
+    const events = JSON.parse(content);
+    return events;
+  } catch (error) {
+    console.error('Error parsing weather events:', error);
+    return [];
+  }
+};
+
 const createOpenAIRequest = (imageUrl: string) => {
   return {
-    model: "gpt-4o",
+    model: "gpt-4",
     messages: [
       {
         role: 'system',
-        content: `You are an expert insurance policy analyzer. Extract BOTH coverage amounts and deductibles accurately.
+        content: `You are an expert insurance policy analyzer. Extract coverage amounts, deductibles, dates, and location accurately.
 
 COVERAGE AMOUNTS EXTRACTION:
 You must find and extract the exact dollar amounts for:
@@ -58,6 +112,12 @@ You must find and extract TWO specific deductibles:
    - This might be shown as both a percentage and a dollar amount
    - Return ONLY the dollar amount, not the percentage
 
+LOCATION AND DATES:
+Extract:
+- Property address (full address including city, state, zip)
+- Policy effective date
+- Policy expiration date
+
 IMPORTANT NOTES:
 - Do NOT perform any calculations yourself
 - Only return dollar amounts explicitly shown on the page
@@ -73,14 +133,15 @@ Return a JSON object with these fields:
 - deductible (exact All Other Perils amount with $ sign)
 - windstormDeductible (exact calculated amount with $ sign)
 - effectiveDate
-- expirationDate`
+- expirationDate
+- location (full property address)`
       },
       {
         role: 'user',
         content: [
           {
             type: 'text',
-            text: 'Please analyze this declaration page carefully. Extract ALL coverage amounts (A, B, C, D) with dollar signs, and both deductibles as exact dollar amounts shown on the page. The Property Coverage Deductible (All Other Perils) should be $5,000 and the Windstorm or Hail Deductible should be $6,830 if shown on the page.'
+            text: 'Please analyze this declaration page carefully. Extract ALL coverage amounts (A, B, C, D) with dollar signs, both deductibles as exact dollar amounts, and the property location and policy dates.'
           },
           {
             type: 'image_url',
@@ -119,11 +180,9 @@ const parseOpenAIResponse = (content: string): string => {
   console.log('Raw OpenAI response:', content);
   
   try {
-    // Try to parse the content directly first
     JSON.parse(content);
     return content;
   } catch (e) {
-    // If direct parsing fails, try to extract JSON
     try {
       if (content.includes('```json')) {
         content = content.split('```json')[1].split('```')[0].trim();
@@ -131,7 +190,6 @@ const parseOpenAIResponse = (content: string): string => {
         content = content.split('```')[1].split('```')[0].trim();
       }
 
-      // Find the first { and last }
       const startIndex = content.indexOf('{');
       const endIndex = content.lastIndexOf('}') + 1;
       
@@ -140,8 +198,6 @@ const parseOpenAIResponse = (content: string): string => {
       }
       
       content = content.substring(startIndex, endIndex);
-      
-      // Validate that we can parse this JSON
       JSON.parse(content);
       return content;
     } catch (e) {
@@ -162,7 +218,8 @@ const formatPolicyDetails = (rawDetails: any): PolicyDetails => {
     deductible: 'Not found',
     windstormDeductible: 'Not found',
     effectiveDate: 'Not found',
-    expirationDate: 'Not found'
+    expirationDate: 'Not found',
+    weatherEvents: []
   };
 
   const currencyFields = ['coverageA', 'coverageB', 'coverageC', 'coverageD', 'deductible', 'windstormDeductible'];
@@ -172,7 +229,6 @@ const formatPolicyDetails = (rawDetails: any): PolicyDetails => {
       let value = rawDetails[field];
       
       if (currencyFields.includes(field) && value !== 'Not found') {
-        // Remove any existing currency symbols and formatting
         value = value.replace(/[^0-9.]/g, '');
         if (!isNaN(parseFloat(value))) {
           value = `$${value}`;
@@ -223,6 +279,17 @@ serve(async (req) => {
     console.log('Parsed content:', content);
 
     const parsedDetails = JSON.parse(content);
+    
+    // Search for weather events using the extracted location and dates
+    if (parsedDetails.location && parsedDetails.effectiveDate && parsedDetails.expirationDate) {
+      const weatherEvents = await searchWeatherEvents(
+        parsedDetails.location,
+        parsedDetails.effectiveDate,
+        parsedDetails.expirationDate
+      );
+      parsedDetails.weatherEvents = weatherEvents;
+    }
+
     const formattedDetails = formatPolicyDetails(parsedDetails);
 
     console.log('Sending formatted response:', formattedDetails);
@@ -242,7 +309,8 @@ serve(async (req) => {
       deductible: 'Error processing request',
       windstormDeductible: 'Error processing request',
       effectiveDate: 'Error processing request',
-      expirationDate: 'Error processing request'
+      expirationDate: 'Error processing request',
+      weatherEvents: []
     };
 
     return new Response(JSON.stringify(errorResponse), {

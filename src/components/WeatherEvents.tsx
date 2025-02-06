@@ -4,6 +4,8 @@ interface WeatherEvent {
   date: string;
   type: 'hail' | 'wind';
   details: string;
+  source?: string;
+  sourceUrl?: string;
 }
 
 interface WeatherEventsProps {
@@ -42,9 +44,22 @@ export const WeatherEvents = ({ isLoading, events }: WeatherEventsProps) => {
               <div className="text-2xl">
                 {event.type === 'hail' ? '🌨️' : '💨'}
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="font-medium">{event.date}</p>
                 <p className="text-gray-600">{event.details}</p>
+                {event.source && event.sourceUrl && (
+                  <p className="text-sm mt-2">
+                    Source:{' '}
+                    <a
+                      href={event.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      {event.source}
+                    </a>
+                  </p>
+                )}
               </div>
             </div>
           ))}
