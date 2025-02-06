@@ -34,9 +34,9 @@ const formatBase64Image = (base64Image: string): string => {
 };
 
 const createSystemPrompt = (): string => {
-  return `You are an expert insurance policy analyzer. Your task is to extract specific coverage amounts and dates from insurance policy declaration pages.
+  return `You are an expert insurance policy analyzer. Extract coverage amounts and dates from insurance policy declaration pages.
 
-Please return a JSON object with EXACTLY this structure and these field names:
+Return a JSON object with this EXACT structure:
 {
   "coverageA": "$XXX,XXX",
   "coverageB": "$XX,XXX",
@@ -49,12 +49,11 @@ Please return a JSON object with EXACTLY this structure and these field names:
   "location": "Full address"
 }
 
-Important rules:
-1. Always include the $ symbol for coverage amounts
-2. Use the EXACT values found in the document for coverages A-D
+Rules:
+1. Include $ for all amounts
+2. Use EXACT values from document
 3. Format dates as MM/DD/YYYY
-4. The deductible values are fixed as shown above
-5. Return ONLY the JSON object, no additional text or explanations`;
+4. Return ONLY the JSON object`;
 };
 
 const searchWeatherEvents = async (location: string, startDate: string, endDate: string): Promise<WeatherEvent[]> => {
@@ -125,7 +124,7 @@ const searchWeatherEvents = async (location: string, startDate: string, endDate:
 };
 
 const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
-  console.log('Analyzing policy image...');
+  console.log('Starting policy image analysis...');
   
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -146,7 +145,7 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
             content: [
               {
                 type: 'text',
-                text: 'Extract the coverage amounts (A-D), dates, and location from this policy declaration page. Remember to format the response exactly as specified, with fixed deductibles of $5,000 and $6,830.'
+                text: 'Extract the coverage amounts, dates, and location from this policy declaration page.'
               },
               {
                 type: 'image_url',
@@ -162,52 +161,51 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
 
     if (!response.ok) {
       console.error('OpenAI API error:', response.status, response.statusText);
-      const errorData = await response.text();
-      console.error('Error details:', errorData);
-      throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('Error details:', errorText);
+      throw new Error(`OpenAI API error: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log('OpenAI API response:', data);
+    console.log('OpenAI API response:', JSON.stringify(data, null, 2));
     
     if (!data.choices?.[0]?.message?.content) {
-      console.error('Invalid response structure:', data);
       throw new Error('Invalid response structure from OpenAI');
     }
 
     const content = data.choices[0].message.content.trim();
-    console.log('Content to parse:', content);
+    console.log('Raw content to parse:', content);
     
     try {
       const parsedContent = JSON.parse(content);
       console.log('Parsed content:', parsedContent);
 
-      // Validate all required fields are present and in correct format
+      // Ensure all required fields are present
       const requiredFields = ['coverageA', 'coverageB', 'coverageC', 'coverageD', 'location', 'effectiveDate', 'expirationDate'];
-      for (const field of requiredFields) {
-        if (!parsedContent[field]) {
-          console.warn(`Missing required field: ${field}`);
-        }
+      const missingFields = requiredFields.filter(field => !parsedContent[field]);
+      
+      if (missingFields.length > 0) {
+        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
       }
 
-      // Validate coverage amounts have $ symbol
+      // Ensure coverage amounts have $ symbol
       const coverageFields = ['coverageA', 'coverageB', 'coverageC', 'coverageD'];
-      for (const field of coverageFields) {
-        if (parsedContent[field] && !parsedContent[field].startsWith('$')) {
+      coverageFields.forEach(field => {
+        if (!parsedContent[field].startsWith('$')) {
           parsedContent[field] = `$${parsedContent[field]}`;
         }
-      }
+      });
       
       const policyDetails: PolicyDetails = {
-        coverageA: parsedContent.coverageA || "Not found",
-        coverageB: parsedContent.coverageB || "Not found",
-        coverageC: parsedContent.coverageC || "Not found",
-        coverageD: parsedContent.coverageD || "Not found",
-        deductible: "$5,000",  // Fixed value
-        windstormDeductible: "$6,830",  // Fixed value
-        effectiveDate: parsedContent.effectiveDate || "Not found",
-        expirationDate: parsedContent.expirationDate || "Not found",
-        location: parsedContent.location || "Not found",
+        coverageA: parsedContent.coverageA,
+        coverageB: parsedContent.coverageB,
+        coverageC: parsedContent.coverageC,
+        coverageD: parsedContent.coverageD,
+        deductible: "$5,000",
+        windstormDeductible: "$6,830",
+        effectiveDate: parsedContent.effectiveDate,
+        expirationDate: parsedContent.expirationDate,
+        location: parsedContent.location,
         weatherEvents: []
       };
       
@@ -229,8 +227,6 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Starting policy analysis...');
-    
     if (!openAIApiKey) {
       throw new Error('OpenAI API key is not configured');
     }
@@ -254,11 +250,8 @@ serve(async (req) => {
         policyDetails.expirationDate
       );
       policyDetails.weatherEvents = weatherEvents;
-    } else {
-      policyDetails.weatherEvents = [];
     }
 
-    console.log('Sending response:', policyDetails);
     return new Response(JSON.stringify(policyDetails), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
