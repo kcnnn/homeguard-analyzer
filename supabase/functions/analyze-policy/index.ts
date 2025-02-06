@@ -58,8 +58,9 @@ Important rules:
 5. The location MUST be the complete property address
 6. Format all monetary values with proper commas and dollar signs, e.g. $100,000 not $100000
 7. For deductibles:
-   - The "deductible" field should be the All Other Perils (AOP) deductible amount
+   - The "deductible" field should be the All Other Perils (AOP) deductible amount with $ symbol
    - The "windstormDeductible" field can be either a fixed amount (e.g. "$2,500") or a percentage (e.g. "2%")
+   - Make sure to include the % symbol for percentage deductibles
 8. Do not include any additional fields beyond what is specified above`;
 };
 
@@ -94,12 +95,20 @@ const validatePolicyDetails = (parsedContent: any): PolicyDetails => {
   }
 
   // Special handling for windstorm deductible (can be $ amount or percentage)
-  if (parsedContent.windstormDeductible !== 'Not found' && 
-      !parsedContent.windstormDeductible.startsWith('$') && 
-      !parsedContent.windstormDeductible.endsWith('%')) {
-    // If it's a number without % or $, assume it's a percentage
-    if (!isNaN(parseFloat(parsedContent.windstormDeductible))) {
-      parsedContent.windstormDeductible = `${parsedContent.windstormDeductible}%`;
+  if (parsedContent.windstormDeductible !== 'Not found') {
+    const value = parsedContent.windstormDeductible.trim();
+    if (!value.startsWith('$') && !value.endsWith('%')) {
+      // Try to parse as a number
+      const numericValue = parseFloat(value);
+      if (!isNaN(numericValue)) {
+        // If it's a small number (less than 100), assume it's a percentage
+        if (numericValue < 100) {
+          parsedContent.windstormDeductible = `${numericValue}%`;
+        } else {
+          // Otherwise, assume it's a dollar amount
+          parsedContent.windstormDeductible = `$${numericValue.toLocaleString()}`;
+        }
+      }
     }
   }
 
