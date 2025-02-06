@@ -40,7 +40,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-4-vision-preview",
         messages: [
           {
             role: 'system',
@@ -110,21 +110,36 @@ serve(async (req) => {
 
     // Ensure all required fields exist with proper formatting
     const requiredFields = ['coverageA', 'coverageB', 'coverageC', 'coverageD', 'deductible', 'effectiveDate', 'expirationDate'];
+    const currencyFields = ['coverageA', 'coverageB', 'coverageC', 'coverageD', 'deductible'];
+    
+    // Initialize default values for all fields
+    const formattedDetails = requiredFields.reduce((acc, field) => {
+      acc[field] = 'Not found';
+      return acc;
+    }, {} as Record<string, string>);
+
+    // Update with actual values where available
     for (const field of requiredFields) {
-      if (!policyDetails[field]) {
-        policyDetails[field] = 'Not found';
-      }
-      // Ensure currency fields have proper formatting
-      if (['coverageA', 'coverageB', 'coverageC', 'coverageD', 'deductible'].includes(field)) {
-        if (policyDetails[field] !== 'Not found' && !policyDetails[field].startsWith('$')) {
-          policyDetails[field] = `$${policyDetails[field].replace(/^\$/, '')}`;
+      if (policyDetails[field] && typeof policyDetails[field] === 'string') {
+        let value = policyDetails[field];
+        
+        // Handle currency formatting for specific fields
+        if (currencyFields.includes(field) && value !== 'Not found') {
+          // Remove any existing currency symbols and formatting
+          value = value.replace(/[^0-9.]/g, '');
+          // Add dollar sign if it's a valid number
+          if (!isNaN(parseFloat(value))) {
+            value = `$${value}`;
+          }
         }
+        
+        formattedDetails[field] = value;
       }
     }
 
-    console.log('Sending response:', policyDetails);
+    console.log('Sending response:', formattedDetails);
 
-    return new Response(JSON.stringify(policyDetails), {
+    return new Response(JSON.stringify(formattedDetails), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
