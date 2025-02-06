@@ -8,3 +8,7 @@ schemas = ["public", "storage"]
 [[functions]]
 [functions.analyze-policy]
 verify_jwt = false
+
+[[functions]]
+[functions.search-weather-events]
+verify_jwt = false

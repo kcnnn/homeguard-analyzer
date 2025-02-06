@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
     Example: [{"date": "2023-05-15", "type": "hail", "details": "Golf ball sized hail damaged vehicles", "source": "Weather Service", "sourceUrl": "http://example.com"}]`
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
