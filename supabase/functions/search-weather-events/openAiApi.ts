@@ -5,6 +5,7 @@ const MAX_TOKENS = 1000; // Increased token limit for more detailed responses
 
 const createSystemPrompt = () => `You are a weather research assistant specializing in finding historical hail and windstorm events. 
 Your task is to search for and report any hail or severe wind events that occurred at or near the specified location during the given time period.
+Use your web browsing capabilities to find accurate information from reliable sources.
 You must return events in the exact format specified.
 For each event found:
 - Include the specific date in YYYY-MM-DD format
@@ -13,10 +14,12 @@ For each event found:
 - Include any reported damage
 - Be specific about locations
 - Type must be either 'hail' or 'wind'
+- Include source URLs when available
 You must respond with properly formatted JSON only.`;
 
 const createUserPrompt = (location: string, startDate: string, endDate: string) => 
   `Search for any hail or severe wind events that occurred at or near ${location} between ${startDate} and ${endDate}.
+  Use web browsing to find accurate information from weather reports, news articles, and official sources.
   You must return the results in this exact JSON format:
   {
     "events": [
@@ -40,14 +43,16 @@ const createFetchOptions = (openAIApiKey: string, location: string, startDate: s
   },
   signal,
   body: JSON.stringify({
-    model: 'gpt-4o-mini', // Fixed: Using the correct model name
+    model: 'gpt-4o-mini',
     messages: [
       { role: 'system', content: createSystemPrompt() },
       { role: 'user', content: createUserPrompt(location, startDate, endDate) }
     ],
     temperature: 0.7,
     max_tokens: MAX_TOKENS,
-    response_format: { type: "json_object" }
+    response_format: { type: "json_object" },
+    tools: [{ type: "retrieval" }], // Enable web browsing
+    tool_choice: "auto" // Let the model decide when to use web browsing
   }),
 });
 
@@ -107,7 +112,7 @@ export async function searchOpenAIEvents(
     return [];
   }
 
-  console.log('Starting OpenAI search for weather events');
+  console.log('Starting OpenAI search for weather events with web browsing enabled');
   console.log('Location:', location);
   console.log('Time period:', { startDate, endDate });
 
