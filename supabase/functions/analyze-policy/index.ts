@@ -29,29 +29,42 @@ const createOpenAIRequest = (imageUrl: string) => {
     messages: [
       {
         role: 'system',
-        content: `You are an expert insurance policy analyzer. Your task is to extract exact coverage and deductible information from insurance declaration pages.
+        content: `You are an expert insurance policy analyzer. Extract BOTH coverage amounts and deductibles accurately.
 
-CRITICAL - DEDUCTIBLES EXTRACTION:
-You must find and extract TWO specific deductibles that are clearly stated on the declarations page:
+COVERAGE AMOUNTS EXTRACTION:
+You must find and extract the exact dollar amounts for:
+1. Coverage A - Dwelling
+2. Coverage B - Other Structures
+3. Coverage C - Personal Property
+4. Coverage D - Loss of Use
+
+For each coverage:
+- Look for clearly stated dollar amounts
+- Include the dollar sign ($) in all values
+- Common formats: "$300,000", "$150,000", etc.
+- Return "Not found" only if you cannot locate the amount
+
+DEDUCTIBLES EXTRACTION:
+You must find and extract TWO specific deductibles:
 
 1. Property Coverage Deductible (All Other Perils):
    - Look for a standard deductible amount shown as a dollar figure
-   - Common labels include: "All Other Perils Deductible", "Standard Deductible", or simply "Deductible"
+   - Common labels: "All Other Perils Deductible", "Standard Deductible", or "Deductible"
    - Example formats: "$1,000", "$2,500", "$5,000"
    - Return the EXACT dollar amount as shown
 
 2. Windstorm/Hurricane Deductible:
-   - This will be shown in TWO parts on the declarations page:
+   - This will be shown in TWO parts:
      a) A percentage (like "2% of Coverage A")
      b) The actual dollar amount this calculates to
-   - IMPORTANT: Look for the pre-calculated dollar amount that's written on the page
+   - Look for the pre-calculated dollar amount written on the page
    - This might appear as "2% ($8,000)" or similar format
    - Return ONLY the dollar amount portion, not the percentage
 
 IMPORTANT NOTES:
 - Do NOT perform any calculations yourself
-- Only return dollar amounts that are explicitly shown on the page
-- Include the dollar sign ($) in all monetary values
+- Only return dollar amounts explicitly shown on the page
+- Include the dollar sign ($) in ALL monetary values
 - If you can't find an exact amount, return "Not found"
 
 Return a JSON object with these fields:
@@ -69,7 +82,7 @@ Return a JSON object with these fields:
         content: [
           {
             type: 'text',
-            text: 'Please analyze this declaration page carefully. For both deductibles, return ONLY the exact dollar amounts shown on the page. For the Windstorm deductible, make sure to find and return the pre-calculated dollar amount, not the percentage.'
+            text: 'Please analyze this declaration page carefully. Extract ALL coverage amounts (A, B, C, D) with dollar signs, and both deductibles as exact dollar amounts shown on the page. For the Windstorm deductible, return the pre-calculated dollar amount, not the percentage.'
           },
           {
             type: 'image_url',
