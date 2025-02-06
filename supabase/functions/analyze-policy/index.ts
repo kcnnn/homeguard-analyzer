@@ -97,7 +97,7 @@ const analyzeImage = async (imageUrl: string, isDeductibles: boolean): Promise<a
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4-vision-preview',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
