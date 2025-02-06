@@ -15,6 +15,22 @@ interface PolicyDetailsProps {
 }
 
 export const PolicyDetails = ({ isLoading, policyDetails }: PolicyDetailsProps) => {
+  const calculateWindstormDeductible = (coverageA: string, percentage: string): string => {
+    // Extract numeric value from Coverage A (removing '$' and ',' characters)
+    const coverageAValue = parseFloat(coverageA.replace(/[$,]/g, ''));
+    // Extract percentage value (removing '%' character)
+    const percentageValue = parseFloat(percentage.replace('%', '')) / 100;
+    
+    if (isNaN(coverageAValue) || isNaN(percentageValue)) {
+      return 'Not found';
+    }
+
+    // Calculate the deductible amount
+    const deductibleAmount = coverageAValue * percentageValue;
+    // Format as currency
+    return `$${deductibleAmount.toLocaleString()}`;
+  };
+
   if (isLoading) {
     return (
       <Card className="w-full p-6">
@@ -33,6 +49,10 @@ export const PolicyDetails = ({ isLoading, policyDetails }: PolicyDetailsProps) 
   if (!policyDetails) {
     return null;
   }
+
+  const windstormDeductibleAmount = policyDetails.coverageA && policyDetails.windstormDeductible
+    ? calculateWindstormDeductible(policyDetails.coverageA, policyDetails.windstormDeductible)
+    : 'Not found';
 
   return (
     <Card className="w-full p-6">
@@ -60,7 +80,7 @@ export const PolicyDetails = ({ isLoading, policyDetails }: PolicyDetailsProps) 
         </div>
         <div>
           <h3 className="font-medium text-gray-600">Windstorm or Hail Deductible</h3>
-          <p className="text-lg">{policyDetails.windstormDeductible || 'Not found'}</p>
+          <p className="text-lg">{windstormDeductibleAmount}</p>
         </div>
         <div>
           <h3 className="font-medium text-gray-600">Policy Period</h3>
