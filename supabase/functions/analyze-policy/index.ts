@@ -38,15 +38,15 @@ const createSystemPrompt = (): string => {
 
 Required fields to extract:
 
-1. Coverage amounts (MUST include $ symbol):
-- coverageA: Look for "Coverage A - Dwelling" amount
-- coverageB: Look for "Coverage B - Other Structures" amount
-- coverageC: Look for "Coverage C - Personal Property" amount
-- coverageD: Look for "Coverage D - Loss of Use" amount
+1. Coverage amounts (CRITICAL - look for these exact values and include $ symbol):
+- coverageA: Look for "Coverage A - Dwelling" amount, typically a large number like $341,500
+- coverageB: Look for "Coverage B - Other Structures" amount, typically 10% of Coverage A
+- coverageC: Look for "Coverage C - Personal Property" amount, typically 50% of Coverage A
+- coverageD: Look for "Coverage D - Loss of Use" amount, typically 20% of Coverage A
 
-2. Deductibles (CRITICAL - look for these exact values):
-- deductible: Look for "Property Coverage Deductible (All Other Perils)" which is $5,000
-- windstormDeductible: Look for "Windstorm or Hail Deductible" which is $6,830
+2. Deductibles (these are fixed values):
+- deductible: "$5,000" (Property Coverage Deductible - All Other Perils)
+- windstormDeductible: "$6,830" (Windstorm or Hail Deductible)
 
 3. Dates and Location:
 - effectiveDate: Start date in MM/DD/YYYY format
@@ -56,9 +56,9 @@ Required fields to extract:
 Return ONLY a JSON object in this exact format:
 {
   "coverageA": "$XXX,XXX",
-  "coverageB": "$XXX,XXX",
+  "coverageB": "$XX,XXX",
   "coverageC": "$XXX,XXX",
-  "coverageD": "$XXX,XXX",
+  "coverageD": "$XX,XXX",
   "deductible": "$5,000",
   "windstormDeductible": "$6,830",
   "effectiveDate": "MM/DD/YYYY",
@@ -145,7 +145,7 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "gpt-4o",  // Fixed: Using the correct model name
+        model: "gpt-4o",
         messages: [
           {
             role: 'system',
@@ -156,7 +156,7 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
             content: [
               {
                 type: 'text',
-                text: 'Extract the exact policy details from this declaration page, paying special attention to the deductibles which are $5,000 for All Other Perils and $6,830 for Windstorm/Hail. Return ONLY the JSON object with the specified fields and format.'
+                text: 'Extract the exact policy details from this declaration page. Pay special attention to Coverage A through D amounts, and remember the deductibles are fixed at $5,000 for All Other Perils and $6,830 for Windstorm/Hail. Return ONLY the JSON object with the specified fields and format.'
               },
               {
                 type: 'image_url',
