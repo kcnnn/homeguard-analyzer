@@ -1,33 +1,36 @@
 import { WeatherEvent } from './types.ts';
 
 const TIMEOUT_DURATION = 30000; // 30 seconds
-const MAX_TOKENS = 500;
+const MAX_TOKENS = 1000; // Increased token limit for more detailed responses
 
 const createSystemPrompt = () => `You are a weather research assistant specializing in finding historical hail and windstorm events. 
 Your task is to search for and report any hail or severe wind events that occurred at or near the specified location during the given time period.
-You should be thorough but respond quickly.
-When reporting events:
-- Include specific dates
-- Mention hail sizes when available
-- Include wind speeds for wind events
-- Reference any reported damage
+You must return events in the exact format specified.
+For each event found:
+- Include the specific date in YYYY-MM-DD format
+- For hail events, include hail sizes when available
+- For wind events, include wind speeds when available
+- Include any reported damage
 - Be specific about locations
-Format your response as a JSON object with an 'events' array.`;
+- Type must be either 'hail' or 'wind'
+You must respond with properly formatted JSON only.`;
 
 const createUserPrompt = (location: string, startDate: string, endDate: string) => 
-  `Tell me about any hail or severe wind events that occurred at or near ${location} between ${startDate} and ${endDate}.
-  Return the results in this JSON format:
+  `Search for any hail or severe wind events that occurred at or near ${location} between ${startDate} and ${endDate}.
+  You must return the results in this exact JSON format:
   {
     "events": [
       {
         "date": "YYYY-MM-DD",
-        "type": "hail" or "wind",
-        "details": "Detailed description including sizes, speeds, and damage",
-        "source": "STORMERSITE.COM",
-        "sourceUrl": "https://stormersite.com/event/123"
+        "type": "hail",
+        "details": "Detailed description including sizes and damage",
+        "source": "Local Weather Report",
+        "sourceUrl": "https://example.com/event"
       }
     ]
-  }`;
+  }
+  The type field must be either "hail" or "wind". The date must be in YYYY-MM-DD format.
+  If no events are found, return an empty events array.`;
 
 const createFetchOptions = (openAIApiKey: string, location: string, startDate: string, endDate: string, signal: AbortSignal) => ({
   method: 'POST',
@@ -37,7 +40,7 @@ const createFetchOptions = (openAIApiKey: string, location: string, startDate: s
   },
   signal,
   body: JSON.stringify({
-    model: 'gpt-4',  // Fixed: Using the correct model name
+    model: 'gpt-4o',
     messages: [
       { role: 'system', content: createSystemPrompt() },
       { role: 'user', content: createUserPrompt(location, startDate, endDate) }
@@ -59,6 +62,13 @@ const validateAndParseEvent = (event: any): WeatherEvent | null => {
     return null;
   }
 
+  // Ensure date is in YYYY-MM-DD format
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(event.date)) {
+    console.warn('Invalid date format:', event.date);
+    return null;
+  }
+
   return {
     date: event.date,
     type: event.type as 'hail' | 'wind',
@@ -70,6 +80,7 @@ const validateAndParseEvent = (event: any): WeatherEvent | null => {
 
 const parseOpenAIResponse = (content: string) => {
   try {
+    console.log('Parsing OpenAI response:', content);
     const parsed = JSON.parse(content);
     if (!parsed.events || !Array.isArray(parsed.events)) {
       console.warn('Invalid response structure:', parsed);
@@ -125,7 +136,9 @@ export async function searchOpenAIEvents(
       return [];
     }
 
-    return parseOpenAIResponse(data.choices[0].message.content);
+    const events = parseOpenAIResponse(data.choices[0].message.content);
+    console.log('Parsed events:', events);
+    return events;
   } catch (error) {
     if (error.name === 'AbortError') {
       console.error('OpenAI request timed out after 30 seconds');
