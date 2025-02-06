@@ -15,23 +15,28 @@ serve(async (req) => {
   }
 
   try {
+    if (!openAIApiKey) {
+      console.error('OpenAI API key is not configured');
+      throw new Error('OpenAI API key is not configured');
+    }
+
     const { base64Image } = await req.json();
 
     if (!base64Image) {
+      console.error('No image data provided');
       throw new Error('No image data provided');
     }
 
     console.log('Sending request to OpenAI...');
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4-vision-preview',
-        max_tokens: 1000,
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',
@@ -53,27 +58,25 @@ serve(async (req) => {
               {
                 type: 'image',
                 image_url: base64Image
-              },
-              {
-                type: 'text',
-                text: 'Extract the coverage information and return it as a JSON object with the exact format specified. No additional text or explanations.'
               }
             ]
           }
         ],
+        max_tokens: 1000,
       }),
     });
 
-    if (!response.ok) {
-      console.error('OpenAI API error:', await response.text());
-      throw new Error('Failed to get response from OpenAI');
+    if (!openAIResponse.ok) {
+      const errorText = await openAIResponse.text();
+      console.error('OpenAI API error:', errorText);
+      throw new Error(`OpenAI API error: ${errorText}`);
     }
 
-    const data = await response.json();
-    console.log('OpenAI raw response:', JSON.stringify(data));
+    const data = await openAIResponse.json();
+    console.log('OpenAI response received:', JSON.stringify(data));
 
-    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-      console.error('Unexpected OpenAI response structure:', data);
+    if (!data.choices?.[0]?.message?.content) {
+      console.error('Invalid OpenAI response structure:', data);
       throw new Error('Invalid response structure from OpenAI');
     }
 
