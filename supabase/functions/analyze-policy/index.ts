@@ -34,53 +34,36 @@ const formatBase64Image = (base64Image: string): string => {
 };
 
 const createSystemPrompt = (): string => {
-  return `You are an expert insurance policy analyzer. Extract coverage amounts, deductibles, dates, and location accurately. Return ONLY raw JSON without any explanations, markdown formatting, or code blocks.
+  return `You are an expert insurance policy analyzer. Extract EXACTLY the following information from the policy declaration page and return it in JSON format. Do not include any explanations or additional text.
 
-COVERAGE AMOUNTS EXTRACTION:
-You must find and extract the exact dollar amounts for:
-1. Coverage A - Dwelling
-2. Coverage B - Other Structures
-3. Coverage C - Personal Property
-4. Coverage D - Loss of Use
+Required fields to extract:
 
-For each coverage:
-- Look for clearly stated dollar amounts
-- Include the dollar sign ($) in all values
-- Common formats: "$300,000", "$150,000", etc.
-- Return "Not found" only if you cannot locate the amount
+1. Coverage amounts (MUST include $ symbol):
+- coverageA: Look for "Coverage A - Dwelling" amount
+- coverageB: Look for "Coverage B - Other Structures" amount
+- coverageC: Look for "Coverage C - Personal Property" amount
+- coverageD: Look for "Coverage D - Loss of Use" amount
 
-DEDUCTIBLES EXTRACTION (CRITICAL):
-You must find and extract TWO specific deductibles:
+2. Deductibles:
+- deductible: Look for "Property Coverage Deductible (All Other Perils)"
+- windstormDeductible: Look for "Windstorm or Hail Deductible"
 
-1. Property Coverage Deductible (All Other Perils):
-   - Look for terms like "All Other Perils", "AOP Deductible", or "Property Coverage Deductible"
-   - Return the exact dollar amount with $ sign (e.g. "$5,000")
-   - This is usually a fixed dollar amount
-   - If not found, return "Not found"
+3. Dates and Location:
+- effectiveDate: Start date in MM/DD/YYYY format
+- expirationDate: End date in MM/DD/YYYY format
+- location: Full property address with street, city, state, and zip
 
-2. Windstorm or Hail Deductible:
-   - Look for terms like "Wind/Hail", "Named Storm", or "Hurricane Deductible"
-   - Return the exact dollar amount with $ sign (e.g. "$6,830")
-   - If shown as percentage, calculate and return the dollar amount
-   - If not found, return "Not found"
-
-LOCATION AND DATES (CRITICAL):
-Extract:
-- Property address: Look for the insured property address, including street, city, state, and zip code
-- Policy effective date (in MM/DD/YYYY format)
-- Policy expiration date (in MM/DD/YYYY format)
-
-Return ONLY the following JSON object without any additional text or formatting:
+Return ONLY a JSON object in this exact format:
 {
-  "coverageA": "(with $ sign)",
-  "coverageB": "(with $ sign)",
-  "coverageC": "(with $ sign)",
-  "coverageD": "(with $ sign)",
-  "deductible": "(exact All Other Perils amount with $ sign)",
-  "windstormDeductible": "(exact calculated amount with $ sign)",
-  "effectiveDate": "(date)",
-  "expirationDate": "(date)",
-  "location": "(full property address)"
+  "coverageA": "$XXX,XXX",
+  "coverageB": "$XXX,XXX",
+  "coverageC": "$XXX,XXX",
+  "coverageD": "$XXX,XXX",
+  "deductible": "$X,XXX or Not found",
+  "windstormDeductible": "$X,XXX or Not found",
+  "effectiveDate": "MM/DD/YYYY",
+  "expirationDate": "MM/DD/YYYY",
+  "location": "Full address or Not found"
 }`;
 };
 
@@ -173,7 +156,7 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
             content: [
               {
                 type: 'text',
-                text: 'Extract ALL policy details from this declaration page, especially deductibles and location. Return ONLY raw JSON.'
+                text: 'Extract the exact policy details from this declaration page. Return ONLY the JSON object with the specified fields and format.'
               },
               {
                 type: 'image_url',
