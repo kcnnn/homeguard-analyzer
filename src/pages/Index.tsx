@@ -15,9 +15,9 @@ const Index = () => {
       // Simulate API call for demo purposes
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Mock data for demonstration
+      // Updated mock data with correct Coverage A amount
       setPolicyDetails({
-        coverageA: "$500,000",
+        coverageA: "$683,000",
         coverageB: "$50,000",
         coverageC: "$250,000",
         coverageD: "$100,000",
