@@ -56,18 +56,20 @@ You must find and extract TWO specific deductibles:
    - Look for "Property Coverage Deductible (All Other Perils)"
    - Return the exact dollar amount shown (e.g. "$5,000")
    - This is usually a fixed dollar amount
+   - If not found, return "Not found"
 
 2. Windstorm or Hail Deductible:
    - Look for "Windstorm or Hail Deductible"
    - Return the exact dollar amount shown (e.g. "$6,830")
    - This might be shown as both a percentage and a dollar amount
    - Return ONLY the dollar amount, not the percentage
+   - If not found, return "Not found"
 
 LOCATION AND DATES:
 Extract:
 - Property address (full address including city, state, zip)
-- Policy effective date
-- Policy expiration date
+- Policy effective date (in MM/DD/YYYY format)
+- Policy expiration date (in MM/DD/YYYY format)
 
 Return ONLY the following JSON object without any additional text or formatting:
 {
@@ -85,7 +87,6 @@ Return ONLY the following JSON object without any additional text or formatting:
 
 const searchWeatherEvents = async (location: string, startDate: string, endDate: string): Promise<WeatherEvent[]> => {
   const prompt = `Search for weather events (hail and high winds over 50mph) at this location: ${location} between ${startDate} and ${endDate}.
-  Use sources like NOAA Storm Events Database or Weather Underground.
   Return ONLY a raw JSON array without any explanations, markdown formatting, or code blocks.
   Format each event exactly as:
   [
@@ -97,7 +98,6 @@ const searchWeatherEvents = async (location: string, startDate: string, endDate:
       "sourceUrl": "direct link to event report if available, or main source URL"
     }
   ]
-  
   If no events found, return exactly: []`;
 
   try {
@@ -114,7 +114,7 @@ const searchWeatherEvents = async (location: string, startDate: string, endDate:
         messages: [
           {
             role: "system",
-            content: "You are a weather research assistant. Search historical weather databases and return ONLY raw JSON without any explanations or formatting."
+            content: "You are a weather research assistant. Return ONLY raw JSON without any explanations or formatting."
           },
           {
             role: "user",
@@ -134,11 +134,6 @@ const searchWeatherEvents = async (location: string, startDate: string, endDate:
     }
     
     const content = data.choices[0].message.content.trim();
-    
-    // Handle potential empty results
-    if (content === '[]') {
-      return [];
-    }
     
     try {
       return JSON.parse(content);
@@ -175,7 +170,7 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
             content: [
               {
                 type: 'text',
-                text: 'Analyze this declaration page and return ONLY raw JSON without any explanations or formatting.'
+                text: 'Extract the policy details from this declaration page and return ONLY raw JSON.'
               },
               {
                 type: 'image_url',
@@ -185,15 +180,12 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
               }
             ]
           }
-        ],
-        max_tokens: 1000,
+        ]
       }),
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error('OpenAI API error:', errorData);
-      throw new Error(`OpenAI API error: ${JSON.stringify(errorData.error || errorData)}`);
+      throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
@@ -206,7 +198,9 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
     const content = data.choices[0].message.content.trim();
     
     try {
-      return JSON.parse(content);
+      const parsedContent = JSON.parse(content);
+      console.log('Parsed policy details:', parsedContent);
+      return parsedContent;
     } catch (parseError) {
       console.error('Error parsing policy details:', parseError);
       console.log('Raw content that failed to parse:', content);
@@ -227,13 +221,11 @@ serve(async (req) => {
     console.log('Starting policy analysis...');
     
     if (!openAIApiKey) {
-      console.error('OpenAI API key is not configured');
       throw new Error('OpenAI API key is not configured');
     }
 
     const { base64Image } = await req.json();
     if (!base64Image) {
-      console.error('No image data provided');
       throw new Error('No image data provided');
     }
 
@@ -243,7 +235,6 @@ serve(async (req) => {
     console.log('Analyzing policy declaration page...');
     const policyDetails = await analyzePolicyImage(imageUrl);
     
-    // Search for weather events if location and dates are available
     if (policyDetails.location && policyDetails.effectiveDate && policyDetails.expirationDate) {
       console.log('Searching for weather events...');
       const weatherEvents = await searchWeatherEvents(
@@ -264,7 +255,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in analyze-policy function:', error);
     return new Response(JSON.stringify({ 
-      error: error.message || 'An unexpected error occurred',
+      error: error.message,
       coverageA: 'Error processing request',
       coverageB: 'Error processing request',
       coverageC: 'Error processing request',
