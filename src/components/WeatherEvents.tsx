@@ -36,7 +36,13 @@ export const WeatherEvents = ({ isLoading, events, location }: WeatherEventsProp
 
   return (
     <Card className="w-full p-6">
-      <h2 className="text-2xl font-semibold mb-2">Weather Events</h2>
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-2xl font-semibold">Weather Events</h2>
+        {isLoading && (
+          <Loader className="h-5 w-5 animate-spin text-primary" />
+        )}
+      </div>
+      
       {location && (
         <p className="text-gray-600 mb-4">
           Location: {location}
