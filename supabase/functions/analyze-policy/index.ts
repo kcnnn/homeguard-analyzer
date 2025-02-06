@@ -36,7 +36,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4-vision-preview',
         messages: [
           {
             role: 'system',
@@ -67,9 +67,17 @@ serve(async (req) => {
     });
 
     if (!openAIResponse.ok) {
-      const errorText = await openAIResponse.text();
-      console.error('OpenAI API error:', errorText);
-      throw new Error(`OpenAI API error: ${errorText}`);
+      const errorData = await openAIResponse.json();
+      console.error('OpenAI API error:', JSON.stringify(errorData));
+      
+      // Handle specific error cases
+      if (errorData.error?.code === 'insufficient_quota') {
+        throw new Error('OpenAI API quota exceeded. Please check your billing details.');
+      } else if (errorData.error?.code === 'model_not_found') {
+        throw new Error('Invalid model configuration. Please contact support.');
+      }
+      
+      throw new Error(`OpenAI API error: ${JSON.stringify(errorData.error || errorData)}`);
     }
 
     const data = await openAIResponse.json();
@@ -129,8 +137,10 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in analyze-policy function:', error);
-    return new Response(JSON.stringify({
-      error: `Failed to process OpenAI response: ${error.message}`,
+    
+    // Create a user-friendly error response
+    const errorResponse = {
+      error: error.message || 'An unexpected error occurred',
       coverageA: 'Error processing request',
       coverageB: 'Error processing request',
       coverageC: 'Error processing request',
@@ -138,7 +148,9 @@ serve(async (req) => {
       deductible: 'Error processing request',
       effectiveDate: 'Error processing request',
       expirationDate: 'Error processing request'
-    }), {
+    };
+
+    return new Response(JSON.stringify(errorResponse), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
