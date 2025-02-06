@@ -27,6 +27,10 @@ serve(async (req) => {
       throw new Error('No image data provided');
     }
 
+    // Ensure the base64 string is properly formatted for OpenAI
+    const formattedBase64 = base64Image.replace(/^data:image\/[a-z]+;base64,/, '');
+    const imageUrl = `data:image/jpeg;base64,${formattedBase64}`;
+
     console.log('Preparing request to OpenAI...');
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -52,7 +56,7 @@ serve(async (req) => {
               {
                 type: 'image_url',
                 image_url: {
-                  url: base64Image
+                  url: imageUrl
                 }
               }
             ]
