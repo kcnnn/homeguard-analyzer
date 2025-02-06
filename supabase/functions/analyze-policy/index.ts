@@ -32,8 +32,11 @@ const createOpenAIRequest = (imageUrl: string) => {
         content: `You are an expert insurance policy analyzer. Extract coverage information from the image and return it in a strict JSON format. 
 
 CRITICAL: Pay special attention to these two deductibles which are typically found on page 2 of the declarations:
-1. Property Coverage Deductible (All Other Perils) - This is a fixed dollar amount
-2. Windstorm or Hail Deductible - This is often shown as both a percentage AND a calculated dollar amount. Always return the dollar amount.
+1. Property Coverage Deductible (All Other Perils) - Look for a fixed dollar amount listed as the standard deductible
+2. Windstorm or Hail Deductible - This is usually shown as a percentage of Coverage A. You must find both:
+   - The percentage (e.g., 1%, 2%, etc.)
+   - The actual dollar amount that's calculated from that percentage
+   Always return the calculated dollar amount in your response.
 
 Return ONLY a JSON object with these fields:
 - coverageA (include dollar sign)
@@ -45,14 +48,14 @@ Return ONLY a JSON object with these fields:
 - effectiveDate
 - expirationDate
 
-Use "Not found" if a value cannot be determined. For the windstormDeductible, always return the actual calculated dollar amount, not the percentage.`
+Use "Not found" if a value cannot be determined. For the windstormDeductible, make sure you return the actual calculated dollar amount shown on the declarations page, not the percentage.`
       },
       {
         role: 'user',
         content: [
           {
             type: 'text',
-            text: 'Carefully analyze this insurance policy declaration page. Look specifically for both the Property Coverage Deductible (All Other Perils) and the Windstorm or Hail Deductible. For the Wind/Hail deductible, make sure to return the calculated dollar amount, not the percentage. Return the information in JSON format.'
+            text: 'Carefully analyze this insurance policy declaration page. Pay special attention to both deductibles on page 2 of the declarations. For the Wind/Hail deductible, make sure to return the actual calculated dollar amount shown, not the percentage. Return all information in JSON format.'
           },
           {
             type: 'image_url',
