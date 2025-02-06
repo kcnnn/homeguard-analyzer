@@ -114,17 +114,17 @@ serve(async (req) => {
           messages: [
             {
               role: 'system',
-              content: `You are a weather researcher. Search the internet for verified hail and severe wind events that occurred at or near the specified location. Focus on:
-              - Exact dates and locations
-              - Specific hail sizes (in inches) and wind speeds
-              - Verified reports from news stations, weather services, and storm tracking sites
-              - Events within a 10-mile radius of the location
-              - Include source URLs for verification
-              Only return events that have specific, verifiable details from reliable sources.`
+              content: `You are a weather researcher with access to internet search. Search for verified hail and severe wind events that occurred at or near the specified location. Include:
+              - Exact dates
+              - Specific hail sizes and wind speeds
+              - Verified reports from news stations and weather services
+              - Events within a 10-mile radius
+              - Source URLs for verification
+              Only return events that you can find through internet search with specific, verifiable details.`
             },
             {
               role: 'user',
-              content: `Tell me about verified hail and severe wind events that occurred at or near ${location} between ${effectiveDate} and ${expirationDate}. Return the response in this exact JSON format:
+              content: `Search for verified hail and severe wind events that occurred at or near ${location} between ${effectiveDate} and ${expirationDate}. Return the response in this exact JSON format:
               {
                 "events": [
                   {
