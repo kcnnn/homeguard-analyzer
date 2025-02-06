@@ -8,7 +8,8 @@ export async function searchOpenAIEvents(
   const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
   
   try {
-    console.log('Searching OpenAI for weather events at location:', location);
+    console.log('Starting OpenAI search for weather events');
+    console.log('Location:', location);
     console.log('Time period:', { startDate, endDate });
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -18,7 +19,7 @@ export async function searchOpenAIEvents(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
@@ -57,6 +58,7 @@ export async function searchOpenAIEvents(
 
     if (!response.ok) {
       console.error('OpenAI API error:', response.status);
+      console.error('Response:', await response.text());
       throw new Error(`OpenAI API error: ${response.status}`);
     }
 
