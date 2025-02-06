@@ -10,37 +10,44 @@ const corsHeaders = {
 };
 
 async function searchNOAAEvents(location: string, startDate: string, endDate: string) {
-  
   try {
     // Format dates for NOAA API (YYYY-MM-DD)
     const formattedStartDate = new Date(startDate).toISOString().split('T')[0];
     const formattedEndDate = new Date(endDate).toISOString().split('T')[0];
 
-    // Extract city and state from location string
-    const locationParts = location.split(',');
+    // Parse location string more accurately
+    let street = '';
     let city = '';
     let state = '';
 
-    // Handle different location formats
+    // Handle address format: "STREET, CITY, STATE ZIP"
     if (location.includes(',')) {
-      // Format: "City, State"
-      city = locationParts[0].trim();
-      state = locationParts[1]?.trim().split(' ')[0];
-    } else if (location.includes(' TX ')) {
-      // Format: "Street, CITY, TX ZIP"
-      const parts = location.split(' TX ');
-      const addressParts = parts[0].split(',');
-      city = addressParts[addressParts.length - 1].trim();
-      state = 'TX';
-    }
+      const parts = location.split(',').map(part => part.trim());
+      
+      // Last part should contain state and possibly ZIP
+      const lastPart = parts[parts.length - 1];
+      const stateMatch = lastPart.match(/([A-Z]{2})/);
+      if (stateMatch) {
+        state = stateMatch[1];
+      }
 
-    console.log('Parsed location:', { city, state, originalLocation: location });
+      // Second to last part should be the city
+      if (parts.length > 1) {
+        city = parts[parts.length - 2].trim();
+      }
+
+      // First part is the street
+      street = parts[0];
+
+      console.log('Parsed address components:', { street, city, state });
+    }
 
     // Request specifically for hail (GH) and wind (WS) data
     const url = `https://www.ncdc.noaa.gov/cdo-web/api/v2/data?datasetid=GHCND&datatypeid=GH,WS&startdate=${formattedStartDate}&enddate=${formattedEndDate}&limit=1000`;
     
     console.log('NOAA API URL:', url);
     console.log('Using NOAA API Key:', noaaApiKey ? 'Key is present' : 'No key found');
+    console.log('Searching for events in:', { city, state });
 
     const response = await fetch(url, {
       headers: {
