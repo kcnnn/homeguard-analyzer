@@ -35,15 +35,15 @@ const formatBase64Image = (base64Image: string): string => {
 
 const createSystemPrompt = (): string => {
   return `You are an expert insurance policy analyzer. Extract coverage amounts and dates from insurance policy declaration pages.
-Please analyze this insurance policy declaration page and extract the following information in JSON format:
+Please analyze this insurance policy declaration page and extract the following information in a strict JSON format.
 
 Required format:
 {
-  "coverageA": "$XXX,XXX" (Dwelling coverage),
-  "coverageB": "$XX,XXX" (Other Structures),
-  "coverageC": "$XX,XXX" (Personal Property),
-  "coverageD": "$XX,XXX" (Loss of Use),
-  "deductible": "$X,XXX" (All Other Perils),
+  "coverageA": "$XXX,XXX",
+  "coverageB": "$XX,XXX",
+  "coverageC": "$XX,XXX",
+  "coverageD": "$XX,XXX",
+  "deductible": "$X,XXX",
   "windstormDeductible": "$X,XXX",
   "effectiveDate": "MM/DD/YYYY",
   "expirationDate": "MM/DD/YYYY",
@@ -53,10 +53,11 @@ Required format:
 Important rules:
 1. ALL monetary values MUST include the $ symbol and commas for thousands
 2. ALL dates MUST be in MM/DD/YYYY format
-3. Return ONLY the JSON object, no additional text
+3. Return ONLY the JSON object, no additional text or explanations
 4. If you cannot find a value, use "Not found" as the value
 5. The location MUST be the complete property address
-6. Format all monetary values with proper commas and dollar signs, e.g. $100,000 not $100000`;
+6. Format all monetary values with proper commas and dollar signs, e.g. $100,000 not $100000
+7. Do not include any additional fields beyond what is specified above`;
 };
 
 const validatePolicyDetails = (parsedContent: any): PolicyDetails => {
@@ -71,6 +72,7 @@ const validatePolicyDetails = (parsedContent: any): PolicyDetails => {
   // Ensure all required fields exist
   for (const field of requiredFields) {
     if (!parsedContent[field]) {
+      console.warn(`Missing required field: ${field}`);
       parsedContent[field] = 'Not found';
     }
   }
@@ -83,6 +85,7 @@ const validatePolicyDetails = (parsedContent: any): PolicyDetails => {
   
   for (const field of monetaryFields) {
     if (parsedContent[field] !== 'Not found' && !parsedContent[field].startsWith('$')) {
+      console.warn(`Adding $ symbol to ${field}`);
       parsedContent[field] = `$${parsedContent[field]}`;
     }
   }
@@ -114,14 +117,14 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
             role: 'user',
             content: [
               {
-                type: 'text',
-                text: 'Please analyze this insurance policy declaration page and extract the required information.'
-              },
-              {
                 type: 'image_url',
                 image_url: {
                   url: imageUrl
                 }
+              },
+              {
+                type: 'text',
+                text: 'Please analyze this insurance policy declaration page and extract the required information in the specified JSON format.'
               }
             ]
           }
