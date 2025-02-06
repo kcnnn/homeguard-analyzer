@@ -25,6 +25,26 @@ const Index = () => {
     queryKey: ['weather-events', location],
     queryFn: async () => {
       if (!location) return [];
+
+      // First, search for new weather events using OpenAI
+      try {
+        const response = await fetch('https://cmjsqliqmfpoxklunhqv.supabase.co/functions/v1/search-weather-events', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ location }),
+        });
+
+        if (!response.ok) {
+          console.error('Error searching for weather events:', await response.text());
+        }
+      } catch (error) {
+        console.error('Error calling search-weather-events function:', error);
+      }
+
+      // Then fetch all events from the database
       const { data, error } = await supabase
         .from('weather_events')
         .select('*')
