@@ -143,27 +143,37 @@ serve(async (req) => {
   }
 
   try {
-    const { base64Image } = await req.json();
-    if (!base64Image) {
+    const { base64Images } = await req.json();
+    if (!base64Images || !Array.isArray(base64Images) || base64Images.length === 0) {
       throw new Error('No image data provided');
     }
 
-    const formattedBase64 = base64Image.replace(/^data:image\/[a-z]+;base64,/, '');
-    const imageUrl = `data:image/jpeg;base64,${formattedBase64}`;
+    let coverageData = null;
+    let deductibleData = null;
 
-    // First analyze for coverages
-    const coverageData = await analyzeImage(imageUrl, false);
-    console.log('Coverage analysis result:', coverageData);
+    // Try to get coverages from first image
+    const firstImageUrl = `data:image/jpeg;base64,${base64Images[0].replace(/^data:image\/[a-z]+;base64,/, '')}`;
+    coverageData = await analyzeImage(firstImageUrl, false);
+    console.log('Coverage analysis result from first image:', coverageData);
 
-    // Then analyze for deductibles
-    const deductibleData = await analyzeImage(imageUrl, true);
-    console.log('Deductible analysis result:', deductibleData);
+    // Try to get deductibles from second image if available
+    if (base64Images.length > 1) {
+      const secondImageUrl = `data:image/jpeg;base64,${base64Images[1].replace(/^data:image\/[a-z]+;base64,/, '')}`;
+      deductibleData = await analyzeImage(secondImageUrl, true);
+      console.log('Deductible analysis result from second image:', deductibleData);
+    }
+
+    // If deductibles weren't found in second image, try first image
+    if (!deductibleData && base64Images.length === 1) {
+      deductibleData = await analyzeImage(firstImageUrl, true);
+      console.log('Deductible analysis result from first image:', deductibleData);
+    }
 
     // Combine the results
     const policyDetails: PolicyDetails = {
       ...coverageData,
-      deductible: deductibleData.deductible || 'Not found',
-      windstormDeductible: deductibleData.windstormDeductible || 'Not found',
+      deductible: deductibleData?.deductible || 'Not found',
+      windstormDeductible: deductibleData?.windstormDeductible || 'Not found',
       weatherEvents: []
     };
 

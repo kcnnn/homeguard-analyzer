@@ -23,53 +23,44 @@ const Index = () => {
     const results = [];
 
     try {
-      for (const file of files) {
-        if (!['image/jpeg', 'image/png'].includes(file.type)) {
-          toast({
-            title: "Invalid File Type",
-            description: `File "${file.name}" skipped. Please upload only JPEG or PNG images.`,
-            variant: "destructive",
-          });
-          continue;
-        }
-
-        const reader = new FileReader();
-        const base64Promise = new Promise((resolve, reject) => {
+      // Convert all files to base64
+      const base64Images = await Promise.all(files.map(file => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
           reader.onload = () => resolve(reader.result);
           reader.onerror = reject;
+          reader.readAsDataURL(file);
         });
-        reader.readAsDataURL(file);
-        const base64Image = await base64Promise;
+      }));
 
-        const { data, error } = await supabase.functions.invoke('analyze-policy', {
-          body: { base64Image },
+      const { data, error } = await supabase.functions.invoke('analyze-policy', {
+        body: { base64Images },
+      });
+
+      if (error) {
+        toast({
+          title: "Analysis Error",
+          description: `Failed to analyze policy documents. ${error.message}`,
+          variant: "destructive",
         });
+        return;
+      }
 
-        if (error) {
-          toast({
-            title: "Analysis Error",
-            description: `Failed to analyze "${file.name}". ${error.message}`,
-            variant: "destructive",
-          });
-          continue;
-        }
-
-        results.push(data);
-        
-        // Update weather events and location from the response
-        if (data.weatherEvents) {
-          setWeatherEvents(data.weatherEvents);
-        }
-        if (data.location) {
-          setLocation(data.location);
-        }
+      results.push(data);
+      
+      // Update weather events and location from the response
+      if (data.weatherEvents) {
+        setWeatherEvents(data.weatherEvents);
+      }
+      if (data.location) {
+        setLocation(data.location);
       }
 
       setPolicyDetails(results);
 
       toast({
         title: "Analysis Complete",
-        description: `Successfully analyzed ${results.length} policy document(s).`,
+        description: `Successfully analyzed ${files.length} policy document(s).`,
       });
     } catch (error) {
       console.error('Error analyzing policies:', error);
