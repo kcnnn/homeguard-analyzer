@@ -103,7 +103,7 @@ serve(async (req) => {
 
     // Get events from both sources in parallel
     const [openAIResponse, noaaEvents] = await Promise.all([
-      // Get events from OpenAI
+      // Get events from OpenAI with improved prompt for factual results
       fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -111,18 +111,40 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o',  // Using the more reliable model
+          model: 'gpt-4o',
           messages: [
             {
               role: 'system',
-              content: 'You are a weather researcher. Your task is to search for and report significant hail and windstorm events. Format your response as a JSON array of events with dates, types (hail/wind), and details.'
+              content: `You are a weather data researcher. Your task is to search for and report ONLY VERIFIED, FACTUAL hail and windstorm events from reliable news sources, weather reports, or meteorological databases. 
+              
+              Important guidelines:
+              - Only include events that you are confident actually occurred
+              - Do not generate or fabricate any events
+              - If you cannot find verified events, return an empty array
+              - Each event must include a real, verifiable source
+              - Focus on significant weather events that would be relevant for insurance claims`
             },
             {
               role: 'user',
-              content: `Search for significant hail and windstorm events that occurred at or near ${location} between ${effectiveDate} and ${expirationDate}. Return the response in this JSON format: { "events": [{ "date": "YYYY-MM-DD", "type": "hail"|"wind", "details": "string", "source": "Local Weather Report", "sourceUrl": "string" }] }`
+              content: `Search for verified hail and windstorm events that occurred at or near ${location} between ${effectiveDate} and ${expirationDate}. Only include events you can confirm from reliable sources.
+
+              Return the response in this JSON format: 
+              {
+                "events": [
+                  {
+                    "date": "YYYY-MM-DD",
+                    "type": "hail"|"wind",
+                    "details": "string describing the verified event",
+                    "source": "name of the reliable source",
+                    "sourceUrl": "URL to the source if available"
+                  }
+                ]
+              }
+              
+              If no verified events are found, return { "events": [] }`
             }
           ],
-          temperature: 0.7,
+          temperature: 0.3, // Lower temperature for more factual responses
           response_format: { type: "json_object" },
         }),
       }).then(async res => {
@@ -140,7 +162,7 @@ serve(async (req) => {
 
     console.log('OpenAI Response:', JSON.stringify(openAIResponse, null, 2));
 
-    // Parse OpenAI events with better error handling
+    // Parse OpenAI events with better validation
     let openAIEvents = [];
     try {
       if (openAIResponse.choices?.[0]?.message?.content) {
@@ -149,9 +171,23 @@ serve(async (req) => {
           console.error('Invalid OpenAI response format:', parsed);
           throw new Error('Invalid response format from OpenAI');
         }
-        openAIEvents = parsed.events.map(event => ({
+        
+        // Validate each event
+        openAIEvents = parsed.events.filter(event => {
+          const isValid = 
+            event.date && 
+            event.type && 
+            event.details && 
+            event.source && 
+            (event.type === 'hail' || event.type === 'wind');
+          
+          if (!isValid) {
+            console.warn('Filtered out invalid event:', event);
+          }
+          return isValid;
+        }).map(event => ({
           ...event,
-          source: event.source || 'AI Weather Report',
+          source: event.source || 'Weather Report',
           sourceUrl: event.sourceUrl || '#',
         }));
       }
@@ -193,7 +229,7 @@ serve(async (req) => {
       success: false,
       events: [] 
     }), {
-      status: 200, // Still return 200 to handle the error gracefully in the frontend
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
