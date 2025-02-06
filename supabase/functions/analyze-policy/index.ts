@@ -34,7 +34,7 @@ const formatBase64Image = (base64Image: string): string => {
 };
 
 const createSystemPrompt = (): string => {
-  return `You are an expert insurance policy analyzer. Extract coverage amounts, deductibles, dates, and location accurately. Return ONLY raw JSON without any markdown formatting or code blocks.
+  return `You are an expert insurance policy analyzer. Extract coverage amounts, deductibles, dates, and location accurately. Return ONLY raw JSON without any explanations, markdown formatting, or code blocks.
 
 COVERAGE AMOUNTS EXTRACTION:
 You must find and extract the exact dollar amounts for:
@@ -69,7 +69,7 @@ Extract:
 - Policy effective date
 - Policy expiration date
 
-Return a raw JSON object (no markdown, no code blocks) with these fields:
+Return ONLY the following JSON object without any additional text or formatting:
 {
   "coverageA": "(with $ sign)",
   "coverageB": "(with $ sign)",
@@ -86,19 +86,23 @@ Return a raw JSON object (no markdown, no code blocks) with these fields:
 const searchWeatherEvents = async (location: string, startDate: string, endDate: string): Promise<WeatherEvent[]> => {
   const prompt = `Search for weather events (hail and high winds over 50mph) at this location: ${location} between ${startDate} and ${endDate}.
   Use sources like NOAA Storm Events Database or Weather Underground.
-  Return ONLY raw JSON array without any markdown formatting or code blocks.
-  Format each event as:
-  {
-    "date": "YYYY-MM-DD",
-    "type": "hail" or "wind",
-    "details": "brief description",
-    "source": "website name",
-    "sourceUrl": "direct link to event report if available, or main source URL"
-  }
+  Return ONLY a raw JSON array without any explanations, markdown formatting, or code blocks.
+  Format each event exactly as:
+  [
+    {
+      "date": "YYYY-MM-DD",
+      "type": "hail" or "wind",
+      "details": "brief description",
+      "source": "website name",
+      "sourceUrl": "direct link to event report if available, or main source URL"
+    }
+  ]
   
-  If no events found, return empty array: []`;
+  If no events found, return exactly: []`;
 
   try {
+    console.log('Searching weather events for:', { location, startDate, endDate });
+    
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -110,7 +114,7 @@ const searchWeatherEvents = async (location: string, startDate: string, endDate:
         messages: [
           {
             role: "system",
-            content: "You are a weather research assistant. Search historical weather databases and return verified weather events in raw JSON format without any markdown or code blocks."
+            content: "You are a weather research assistant. Search historical weather databases and return ONLY raw JSON without any explanations or formatting."
           },
           {
             role: "user",
@@ -122,12 +126,27 @@ const searchWeatherEvents = async (location: string, startDate: string, endDate:
     });
 
     const data = await response.json();
-    console.log('Weather search response:', data);
+    console.log('Weather search raw response:', data);
     
-    const content = data.choices[0].message.content;
-    // Clean up any potential markdown formatting
-    const cleanJson = content.replace(/```json\n|\n```|```/g, '').trim();
-    return JSON.parse(cleanJson);
+    if (!data.choices?.[0]?.message?.content) {
+      console.error('Invalid response structure from OpenAI');
+      return [];
+    }
+    
+    const content = data.choices[0].message.content.trim();
+    
+    // Handle potential empty results
+    if (content === '[]') {
+      return [];
+    }
+    
+    try {
+      return JSON.parse(content);
+    } catch (parseError) {
+      console.error('Error parsing weather events:', parseError);
+      console.log('Raw content that failed to parse:', content);
+      return [];
+    }
   } catch (error) {
     console.error('Error searching weather events:', error);
     return [];
@@ -137,56 +156,66 @@ const searchWeatherEvents = async (location: string, startDate: string, endDate:
 const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
   console.log('Analyzing policy image...');
   
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openAIApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: 'system',
-          content: createSystemPrompt()
-        },
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: 'Please analyze this declaration page carefully. Extract ALL coverage amounts (A, B, C, D) with dollar signs, both deductibles as exact dollar amounts, and the property location and policy dates. Return ONLY raw JSON without any markdown formatting.'
-            },
-            {
-              type: 'image_url',
-              image_url: {
-                url: imageUrl
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: 'system',
+            content: createSystemPrompt()
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Analyze this declaration page and return ONLY raw JSON without any explanations or formatting.'
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: imageUrl
+                }
               }
-            }
-          ]
-        }
-      ],
-      max_tokens: 1000,
-    }),
-  });
+            ]
+          }
+        ],
+        max_tokens: 1000,
+      }),
+    });
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    console.error('OpenAI API error:', errorData);
-    throw new Error(`OpenAI API error: ${JSON.stringify(errorData.error || errorData)}`);
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('OpenAI API error:', errorData);
+      throw new Error(`OpenAI API error: ${JSON.stringify(errorData.error || errorData)}`);
+    }
+
+    const data = await response.json();
+    console.log('Policy analysis raw response:', data);
+    
+    if (!data.choices?.[0]?.message?.content) {
+      throw new Error('Invalid response structure from OpenAI');
+    }
+
+    const content = data.choices[0].message.content.trim();
+    
+    try {
+      return JSON.parse(content);
+    } catch (parseError) {
+      console.error('Error parsing policy details:', parseError);
+      console.log('Raw content that failed to parse:', content);
+      throw new Error('Failed to parse policy details from OpenAI response');
+    }
+  } catch (error) {
+    console.error('Error in analyzePolicyImage:', error);
+    throw error;
   }
-
-  const data = await response.json();
-  console.log('Policy analysis response:', data);
-  
-  if (!data.choices?.[0]?.message?.content) {
-    throw new Error('Invalid response structure from OpenAI');
-  }
-
-  // Clean up any potential markdown formatting
-  const content = data.choices[0].message.content;
-  const cleanJson = content.replace(/```json\n|\n```|```/g, '').trim();
-  return JSON.parse(cleanJson);
 };
 
 serve(async (req) => {
