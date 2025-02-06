@@ -17,7 +17,8 @@ export const FileUpload = ({ onFileUpload }: FileUploadProps) => {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'image/*': ['.jpeg', '.jpg', '.png', '.pdf'],
+      'image/jpeg': ['.jpeg', '.jpg'],
+      'image/png': ['.png'],
     },
     maxFiles: 1,
   });
@@ -41,7 +42,7 @@ export const FileUpload = ({ onFileUpload }: FileUploadProps) => {
               <Button variant="outline">Browse Files</Button>
             </>
           )}
-          <p className="text-sm text-gray-500">Supports JPEG, PNG, and PDF files</p>
+          <p className="text-sm text-gray-500">Supports JPEG and PNG files only</p>
         </div>
       </div>
     </Card>

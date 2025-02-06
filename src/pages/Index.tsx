@@ -11,6 +11,16 @@ const Index = () => {
   const [weatherEvents, setWeatherEvents] = useState([]);
 
   const handleFileUpload = async (file: File) => {
+    // Validate file type
+    if (!['image/jpeg', 'image/png'].includes(file.type)) {
+      toast({
+        title: "Invalid File Type",
+        description: "Please upload only JPEG or PNG images.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsAnalyzing(true);
     try {
       // Convert the file to base64
