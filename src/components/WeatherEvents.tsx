@@ -79,7 +79,7 @@ export const WeatherEvents = ({ isLoading, events, location }: WeatherEventsProp
         )}
       </div>
 
-      {/* OpenAI Events Section - Show loading state or results */}
+      {/* OpenAI Events Section - Always show this section when loading or when there are results */}
       <div className="mt-8 pt-8 border-t border-gray-200">
         <h3 className="text-lg font-semibold mb-4">Additional Reported Events</h3>
         {isLoading ? (
