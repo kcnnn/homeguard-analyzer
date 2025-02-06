@@ -12,33 +12,32 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-
-// Import the WeatherEvent type from the WeatherEvents component
 import type { WeatherEvent } from '@/components/WeatherEvents';
 
 const Index = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [policyDetails, setPolicyDetails] = useState<any[]>([]);
   const [location, setLocation] = useState<string>('');
+  const [effectiveDate, setEffectiveDate] = useState<string>('');
+  const [expirationDate, setExpirationDate] = useState<string>('');
 
   const { data: weatherEvents = [], isLoading: isLoadingEvents } = useQuery({
-    queryKey: ['weather-events', location],
+    queryKey: ['weather-events', location, effectiveDate, expirationDate],
     queryFn: async () => {
-      if (!location) return [];
+      if (!location || !effectiveDate || !expirationDate) return [];
 
       // First, search for new weather events using OpenAI
       try {
-        const response = await fetch('https://cmjsqliqmfpoxklunhqv.supabase.co/functions/v1/search-weather-events', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.SUPABASE_ANON_KEY}`,
+        const response = await supabase.functions.invoke('search-weather-events', {
+          body: { 
+            location,
+            effectiveDate,
+            expirationDate
           },
-          body: JSON.stringify({ location }),
         });
 
-        if (!response.ok) {
-          console.error('Error searching for weather events:', await response.text());
+        if (response.error) {
+          console.error('Error searching for weather events:', response.error);
         }
       } catch (error) {
         console.error('Error calling search-weather-events function:', error);
@@ -49,6 +48,8 @@ const Index = () => {
         .from('weather_events')
         .select('*')
         .eq('location', location)
+        .gte('date', effectiveDate)
+        .lte('date', expirationDate)
         .order('date', { ascending: false });
 
       if (error) {
@@ -61,9 +62,7 @@ const Index = () => {
         return [];
       }
 
-      // Validate and transform the data to match WeatherEvent type
       return (data || []).map(event => {
-        // Ensure type is either 'hail' or 'wind'
         if (event.type !== 'hail' && event.type !== 'wind') {
           console.warn(`Invalid weather event type: ${event.type}, defaulting to 'wind'`);
           event.type = 'wind';
@@ -78,7 +77,7 @@ const Index = () => {
         } satisfies WeatherEvent;
       });
     },
-    enabled: !!location,
+    enabled: !!(location && effectiveDate && expirationDate),
   });
 
   const handleFileUpload = async (files: File[]) => {
@@ -86,7 +85,6 @@ const Index = () => {
     const results = [];
 
     try {
-      // Convert all files to base64
       const base64Images = await Promise.all(files.map(file => {
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
@@ -111,9 +109,14 @@ const Index = () => {
 
       results.push(data);
       
-      // Update location from the response
       if (data.location) {
         setLocation(data.location);
+      }
+      if (data.effectiveDate) {
+        setEffectiveDate(data.effectiveDate);
+      }
+      if (data.expirationDate) {
+        setExpirationDate(data.expirationDate);
       }
 
       setPolicyDetails(results);

@@ -12,11 +12,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { location } = await req.json()
+    const { location, effectiveDate, expirationDate } = await req.json()
     
-    if (!location) {
+    if (!location || !effectiveDate || !expirationDate) {
       return new Response(
-        JSON.stringify({ error: 'Location is required' }),
+        JSON.stringify({ error: 'Location and policy dates are required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
     )
 
     // Use OpenAI to search for weather events
-    const prompt = `Search for significant hail and windstorm events in ${location} in the past 3 years. For each event, provide:
+    const prompt = `Search for significant hail and windstorm events in ${location} between ${effectiveDate} and ${expirationDate}. For each event, provide:
     1. The date (YYYY-MM-DD format)
     2. The type (either 'hail' or 'wind')
     3. A brief description of the event
@@ -54,6 +54,8 @@ Deno.serve(async (req) => {
 
     const response = JSON.parse(completion.choices[0].message.content);
     const events = response.events || [];
+
+    console.log('Found weather events:', events);
 
     // Store events in the database
     for (const event of events) {
@@ -81,6 +83,7 @@ Deno.serve(async (req) => {
     )
 
   } catch (error) {
+    console.error('Error in search-weather-events function:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
