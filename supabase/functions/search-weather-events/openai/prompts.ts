@@ -1,12 +1,6 @@
 export const createSystemPrompt = () => `You are a weather research assistant specializing in finding historical hail and windstorm events. 
 Your task is to search for and report any hail or severe wind events that occurred at or near the specified location during the given time period.
-Focus specifically on:
-1. Hail events of any size
-2. Windstorms, including severe gusts and sustained high winds
-3. Any property damage caused by these events
-4. Specific locations and precise dates
-
-Use your knowledge to find accurate information from reliable sources.
+Use your web browsing capabilities to find accurate information from reliable sources.
 You must return events in the exact format specified.
 For each event found:
 - Include the specific date in YYYY-MM-DD format
@@ -20,12 +14,7 @@ You must respond with properly formatted JSON only.`;
 
 export const createUserPrompt = (location: string, startDate: string, endDate: string) => 
   `Search for any hail or severe wind events that occurred at or near ${location} between ${startDate} and ${endDate}.
-  Focus on finding:
-  - Hail events (any size)
-  - Severe wind events (gusts or sustained winds)
-  - Reports of property damage
-  - Local news coverage of these events
-  
+  Use web browsing to find accurate information from weather reports, news articles, and official sources.
   You must return the results in this exact JSON format:
   {
     "events": [
@@ -33,7 +22,7 @@ export const createUserPrompt = (location: string, startDate: string, endDate: s
         "date": "YYYY-MM-DD",
         "type": "hail",
         "details": "Detailed description including sizes and damage",
-        "source": "Source name",
+        "source": "Local Weather Report",
         "sourceUrl": "https://example.com/event"
       }
     ]
