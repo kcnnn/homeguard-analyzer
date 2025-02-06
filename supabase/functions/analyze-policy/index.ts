@@ -29,33 +29,42 @@ const createOpenAIRequest = (imageUrl: string) => {
     messages: [
       {
         role: 'system',
-        content: `You are an expert insurance policy analyzer. Extract coverage information from the image and return it in a strict JSON format. 
+        content: `You are an expert insurance policy analyzer. Your primary task is to accurately extract coverage and deductible information from insurance declaration pages.
 
-CRITICAL: Pay special attention to these two deductibles which are typically found on page 2 of the declarations:
-1. Property Coverage Deductible (All Other Perils) - Look for a fixed dollar amount listed as the standard deductible
-2. Windstorm or Hail Deductible - This is usually shown as a percentage of Coverage A. You must find both:
-   - The percentage (e.g., 1%, 2%, etc.)
-   - The actual dollar amount that's calculated from that percentage
-   Always return the calculated dollar amount in your response.
+CRITICAL - DEDUCTIBLES EXTRACTION:
+You must carefully locate and extract TWO distinct deductibles that appear on the declarations page:
+
+1. Property Coverage Deductible (All Other Perils):
+   - This is a straightforward dollar amount (e.g., $1,000, $2,500, $5,000)
+   - It's typically labeled as "Deductible" or "All Other Perils Deductible"
+   - Return the exact dollar amount you find
+
+2. Windstorm or Hail Deductible:
+   - This appears as a percentage of Coverage A (e.g., 2% of Coverage A)
+   - The declarations page will show BOTH:
+     a) The percentage (like 2%)
+     b) The actual calculated dollar amount
+   - You must return the actual calculated dollar amount shown on the page
+   - Do NOT calculate this yourself - use the exact dollar amount listed
 
 Return ONLY a JSON object with these fields:
 - coverageA (include dollar sign)
 - coverageB (include dollar sign)
 - coverageC (include dollar sign)
 - coverageD (include dollar sign)
-- deductible (the All Other Perils deductible, include dollar sign)
-- windstormDeductible (the actual calculated dollar amount for Wind/Hail, include dollar sign)
+- deductible (the All Other Perils deductible amount)
+- windstormDeductible (the actual calculated dollar amount for Wind/Hail)
 - effectiveDate
 - expirationDate
 
-Use "Not found" if a value cannot be determined. For the windstormDeductible, make sure you return the actual calculated dollar amount shown on the declarations page, not the percentage.`
+Use "Not found" if you cannot locate a specific value. For both deductibles, you must return the exact dollar amounts as they appear on the declarations page.`
       },
       {
         role: 'user',
         content: [
           {
             type: 'text',
-            text: 'Carefully analyze this insurance policy declaration page. Pay special attention to both deductibles on page 2 of the declarations. For the Wind/Hail deductible, make sure to return the actual calculated dollar amount shown, not the percentage. Return all information in JSON format.'
+            text: 'Please analyze this insurance declaration page. Focus specifically on finding both deductibles. For the Property Coverage Deductible, find the fixed dollar amount. For the Windstorm/Hail Deductible, locate and return the actual calculated dollar amount shown on the page (not the percentage). Return all information in JSON format.'
           },
           {
             type: 'image_url',
