@@ -12,12 +12,17 @@ export async function searchOpenAIEvents(
     console.log('Location:', location);
     console.log('Time period:', { startDate, endDate });
     
+    // Set a timeout for the fetch request
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
+      signal: controller.signal,
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: [
@@ -25,7 +30,7 @@ export async function searchOpenAIEvents(
             role: 'system',
             content: `You are a weather research assistant specializing in finding historical hail and windstorm events. 
             Your task is to search for and report any hail or severe wind events that occurred at or near the specified location during the given time period.
-            You should be thorough and include any events that could have affected the specified property.
+            You should be thorough but respond quickly.
             When reporting events:
             - Include specific dates
             - Mention hail sizes when available
@@ -52,9 +57,13 @@ export async function searchOpenAIEvents(
           }
         ],
         temperature: 0.7,
+        max_tokens: 500, // Limit response size
         response_format: { type: "json_object" }
       }),
     });
+
+    // Clear the timeout
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       console.error('OpenAI API error:', response.status);
@@ -98,7 +107,11 @@ export async function searchOpenAIEvents(
       return [];
     }
   } catch (error) {
-    console.error('Error in OpenAI search:', error);
+    if (error.name === 'AbortError') {
+      console.error('OpenAI request timed out after 30 seconds');
+    } else {
+      console.error('Error in OpenAI search:', error);
+    }
     return [];
   }
 }
