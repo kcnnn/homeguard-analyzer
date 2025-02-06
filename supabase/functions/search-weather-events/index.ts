@@ -1,105 +1,13 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-const noaaApiKey = Deno.env.get('NOAA_API_KEY');
+import { searchNOAAEvents } from './noaaApi.ts';
+import { searchOpenAIEvents } from './openAiApi.ts';
+import type { WeatherEvent } from './types.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-async function searchNOAAEvents(location: string, startDate: string, endDate: string) {
-  try {
-    // Format dates for NOAA API (YYYY-MM-DD)
-    const formattedStartDate = new Date(startDate).toISOString().split('T')[0];
-    const formattedEndDate = new Date(endDate).toISOString().split('T')[0];
-
-    // Parse location string more accurately
-    let street = '';
-    let city = '';
-    let state = '';
-
-    // Handle address format: "STREET, CITY, STATE ZIP"
-    if (location.includes(',')) {
-      const parts = location.split(',').map(part => part.trim());
-      
-      // First part is the street
-      street = parts[0];
-
-      // Second part should be the city
-      if (parts.length > 1) {
-        city = parts[1].trim();
-      }
-
-      // Last part should contain state and possibly ZIP
-      if (parts.length > 2) {
-        const lastPart = parts[parts.length - 1];
-        // Match state abbreviation (2 uppercase letters)
-        const stateMatch = lastPart.match(/([A-Z]{2})/);
-        if (stateMatch) {
-          state = stateMatch[1];
-        }
-      }
-
-      console.log('Parsed address components:', { street, city, state });
-    }
-
-    // Request specifically for hail (GH) and wind (WS) data
-    const url = `https://www.ncdc.noaa.gov/cdo-web/api/v2/data?datasetid=GHCND&datatypeid=GH,WS&startdate=${formattedStartDate}&enddate=${formattedEndDate}&limit=1000`;
-    
-    console.log('NOAA API URL:', url);
-    console.log('Using NOAA API Key:', noaaApiKey ? 'Key is present' : 'No key found');
-    console.log('Searching for events in:', { city, state });
-
-    const response = await fetch(url, {
-      headers: {
-        'token': noaaApiKey || ''
-      }
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('NOAA API Error:', response.status, errorText);
-      return [];
-    }
-
-    const data = await response.json();
-    console.log('NOAA API Response:', JSON.stringify(data, null, 2));
-
-    if (!data.results || !Array.isArray(data.results)) {
-      console.log('No results found in NOAA response');
-      return [];
-    }
-
-    // Transform NOAA events into our format with better type detection
-    const events = data.results
-      .filter((event: any) => event.datatype && event.date)
-      .map((event: any) => {
-        // Determine event type based on NOAA data type codes
-        const isHail = event.datatype === 'GH' || event.datatype.includes('HAIL');
-        const isWind = event.datatype === 'WS' || event.datatype.includes('WIND');
-        
-        const details = `${isHail ? 'Hail' : 'Wind'} Event - ${event.datatype}: ${event.value} ${event.unit || ''}`;
-        console.log('Processing event:', { date: event.date, type: isHail ? 'hail' : 'wind', details });
-        
-        return {
-          date: event.date.split('T')[0],
-          type: isHail ? 'hail' : 'wind',
-          details,
-          source: 'NOAA National Weather Service',
-          sourceUrl: 'https://www.ncdc.noaa.gov/stormevents/',
-        };
-      });
-
-    console.log('Processed NOAA events:', events);
-    return events;
-
-  } catch (error) {
-    console.error('Error fetching NOAA data:', error);
-    return [];
-  }
-}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -110,90 +18,15 @@ serve(async (req) => {
     const { location, effectiveDate, expirationDate } = await req.json();
     console.log('Searching for weather events:', { location, effectiveDate, expirationDate });
 
-    // Get events from both sources in parallel
-    const [openAIResponse, noaaEvents] = await Promise.all([
-      // Get events from OpenAI
-      fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openAIApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: `You are a weather researcher with access to internet search. Search for verified hail and severe wind events that occurred at or near the specified location. Include:
-              - Exact dates
-              - Specific hail sizes and wind speeds
-              - Verified reports from news stations and weather services
-              - Events within a 10-mile radius
-              - Source URLs for verification
-              Only return events that you can find through internet search with specific, verifiable details.`
-            },
-            {
-              role: 'user',
-              content: `Search for verified hail and severe wind events that occurred at or near ${location} between ${effectiveDate} and ${expirationDate}. Return the response in this exact JSON format:
-              {
-                "events": [
-                  {
-                    "date": "YYYY-MM-DD",
-                    "type": "hail"|"wind",
-                    "details": "Detailed description including measurements and specific locations",
-                    "source": "Name of the source (e.g. KVUE News, Weather Service)",
-                    "sourceUrl": "URL to the source"
-                  }
-                ]
-              }`
-            }
-          ],
-          temperature: 0.1,
-          response_format: { type: "json_object" },
-        }),
-      }).then(async res => {
-        if (!res.ok) {
-          const errorText = await res.text();
-          console.error('OpenAI API Error:', errorText);
-          throw new Error(`OpenAI API error: ${errorText}`);
-        }
-        return res.json();
-      }),
-      
-      // Get events from NOAA
+    const [openAIEvents, noaaEvents] = await Promise.all([
+      searchOpenAIEvents(location, effectiveDate, expirationDate),
       searchNOAAEvents(location, effectiveDate, expirationDate)
     ]);
 
-    console.log('Raw OpenAI Response:', JSON.stringify(openAIResponse, null, 2));
-
-    // Parse OpenAI events with better error handling
-    let openAIEvents = [];
-    try {
-      if (openAIResponse.choices?.[0]?.message?.content) {
-        const content = openAIResponse.choices[0].message.content;
-        console.log('OpenAI content:', content);
-        
-        const parsed = JSON.parse(content);
-        console.log('Parsed OpenAI response:', parsed);
-        
-        if (parsed.events && Array.isArray(parsed.events)) {
-          openAIEvents = parsed.events;
-          console.log('Extracted OpenAI events:', openAIEvents);
-        } else {
-          console.log('No events array found in parsed response');
-        }
-      } else {
-        console.log('No content found in OpenAI response');
-      }
-    } catch (error) {
-      console.error('Error parsing OpenAI response:', error);
-    }
-
-    // Combine and sort events
     const allEvents = [...noaaEvents, ...openAIEvents];
     console.log('Combined events before deduplication:', allEvents);
     
-    const uniqueEvents = allEvents.reduce((acc: any[], event: any) => {
+    const uniqueEvents = allEvents.reduce((acc: WeatherEvent[], event: WeatherEvent) => {
       const isDuplicate = acc.some(e => 
         e.date === event.date && 
         e.type === event.type
@@ -204,9 +37,7 @@ serve(async (req) => {
       return acc;
     }, []);
 
-    // Sort by date (most recent first)
-    uniqueEvents.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
+    uniqueEvents.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     console.log('Final events being returned:', uniqueEvents);
 
     return new Response(JSON.stringify({ success: true, events: uniqueEvents }), {
