@@ -1,5 +1,6 @@
 import { Loader } from 'lucide-react';
 import type { WeatherEvent } from '../WeatherEvents';
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface OpenAiEventsProps {
   isLoading: boolean;
@@ -50,7 +51,13 @@ export const OpenAiEvents = ({ isLoading, events }: OpenAiEventsProps) => {
             ))}
           </div>
         </>
-      ) : null}
+      ) : (
+        <Alert>
+          <AlertDescription>
+            No additional weather events were found for this location and time period.
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 };

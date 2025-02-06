@@ -111,7 +111,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: 'gpt-4o',  // Using the more reliable model
           messages: [
             {
               role: 'system',
@@ -127,8 +127,9 @@ serve(async (req) => {
         }),
       }).then(async res => {
         if (!res.ok) {
-          console.error('OpenAI API Error:', await res.text());
-          return { choices: [] };
+          const errorText = await res.text();
+          console.error('OpenAI API Error:', errorText);
+          throw new Error(`OpenAI API error: ${errorText}`);
         }
         return res.json();
       }),
@@ -139,15 +140,16 @@ serve(async (req) => {
 
     console.log('OpenAI Response:', JSON.stringify(openAIResponse, null, 2));
 
-    // Parse OpenAI events
+    // Parse OpenAI events with better error handling
     let openAIEvents = [];
     try {
       if (openAIResponse.choices?.[0]?.message?.content) {
         const parsed = JSON.parse(openAIResponse.choices[0].message.content);
-        openAIEvents = parsed.events || [];
-        
-        // Ensure each OpenAI event has the required fields
-        openAIEvents = openAIEvents.map(event => ({
+        if (!parsed.events || !Array.isArray(parsed.events)) {
+          console.error('Invalid OpenAI response format:', parsed);
+          throw new Error('Invalid response format from OpenAI');
+        }
+        openAIEvents = parsed.events.map(event => ({
           ...event,
           source: event.source || 'AI Weather Report',
           sourceUrl: event.sourceUrl || '#',
@@ -155,6 +157,7 @@ serve(async (req) => {
       }
     } catch (error) {
       console.error('Error parsing OpenAI response:', error);
+      throw new Error('Failed to parse OpenAI response');
     }
 
     console.log('Parsed OpenAI events:', openAIEvents);
@@ -185,8 +188,12 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in search-weather-events function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      success: false,
+      events: [] 
+    }), {
+      status: 200, // Still return 200 to handle the error gracefully in the frontend
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
