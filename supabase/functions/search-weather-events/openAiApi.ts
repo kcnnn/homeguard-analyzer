@@ -40,7 +40,7 @@ const createFetchOptions = (openAIApiKey: string, location: string, startDate: s
   },
   signal,
   body: JSON.stringify({
-    model: 'gpt-4o',
+    model: 'gpt-4o-mini', // Fixed: Using the correct model name
     messages: [
       { role: 'system', content: createSystemPrompt() },
       { role: 'user', content: createUserPrompt(location, startDate, endDate) }
