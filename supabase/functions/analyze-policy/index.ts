@@ -35,7 +35,7 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: 'You are an expert insurance policy analyzer. Extract key information from insurance policy documents and return it in a strict JSON format with the following fields: coverageA, coverageB, coverageC, coverageD, deductible, effectiveDate, and expirationDate. All values should be strings.'
+            content: `You are an expert insurance policy analyzer. Your task is to extract specific coverage information and return it in a strict JSON format. The response must be a valid JSON object with these exact fields: coverageA, coverageB, coverageC, coverageD, deductible, effectiveDate, and expirationDate. All values must be strings. Currency values must include the dollar sign and commas (e.g., "$250,000"). Dates must be in MM/DD/YYYY format.`
           },
           {
             role: 'user',
@@ -46,7 +46,7 @@ serve(async (req) => {
               },
               {
                 type: 'text',
-                text: 'Analyze this insurance policy document and return ONLY a JSON object with these exact fields: coverageA, coverageB, coverageC, coverageD, deductible, effectiveDate, and expirationDate. Format all currency values as strings with dollar signs (e.g. "$250,000"). Format all dates as MM/DD/YYYY strings. Do not include any explanatory text, just the JSON object.'
+                text: 'Extract the coverage information and return it as a JSON object. Include ONLY these fields: coverageA, coverageB, coverageC, coverageD, deductible, effectiveDate, and expirationDate. Do not include any explanatory text or markdown formatting.'
               }
             ]
           }
@@ -62,37 +62,50 @@ serve(async (req) => {
       const content = data.choices[0].message.content;
       console.log('Raw content from OpenAI:', content);
       
-      // Try to clean the content if it contains any markdown or extra text
-      let jsonContent = content;
-      if (content.includes('```json')) {
-        jsonContent = content.split('```json')[1].split('```')[0];
-      } else if (content.includes('{')) {
-        jsonContent = content.substring(content.indexOf('{'), content.lastIndexOf('}') + 1);
+      // Clean up the content to ensure we get valid JSON
+      let jsonContent = content.trim();
+      
+      // Remove any markdown formatting
+      if (jsonContent.includes('```json')) {
+        jsonContent = jsonContent.split('```json')[1].split('```')[0].trim();
+      } else if (jsonContent.includes('```')) {
+        jsonContent = jsonContent.split('```')[1].split('```')[0].trim();
+      }
+      
+      // If there's still text before or after the JSON object, extract just the JSON
+      if (jsonContent.includes('{')) {
+        const startIndex = jsonContent.indexOf('{');
+        const endIndex = jsonContent.lastIndexOf('}') + 1;
+        jsonContent = jsonContent.substring(startIndex, endIndex);
       }
       
       console.log('Cleaned content before parsing:', jsonContent);
-      policyDetails = JSON.parse(jsonContent);
       
-      // Ensure all required fields are present
+      try {
+        policyDetails = JSON.parse(jsonContent);
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        throw new Error('Failed to parse JSON response');
+      }
+      
+      // Validate and ensure all required fields exist
       const requiredFields = ['coverageA', 'coverageB', 'coverageC', 'coverageD', 'deductible', 'effectiveDate', 'expirationDate'];
       for (const field of requiredFields) {
         if (!policyDetails[field]) {
           policyDetails[field] = 'Not found';
         }
+        // Ensure currency fields have proper formatting
+        if (['coverageA', 'coverageB', 'coverageC', 'coverageD', 'deductible'].includes(field)) {
+          if (policyDetails[field] !== 'Not found' && !policyDetails[field].startsWith('$')) {
+            policyDetails[field] = `$${policyDetails[field].replace(/^\$/, '')}`;
+          }
+        }
       }
       
-      console.log('Successfully parsed policy details:', policyDetails);
+      console.log('Successfully parsed and validated policy details:', policyDetails);
     } catch (error) {
-      console.error('Error parsing OpenAI response:', error);
-      policyDetails = {
-        coverageA: 'Error parsing response',
-        coverageB: 'Error parsing response',
-        coverageC: 'Error parsing response',
-        coverageD: 'Error parsing response',
-        deductible: 'Error parsing response',
-        effectiveDate: null,
-        expirationDate: null
-      };
+      console.error('Error processing OpenAI response:', error);
+      throw new Error(`Failed to process OpenAI response: ${error.message}`);
     }
 
     return new Response(JSON.stringify(policyDetails), {
@@ -107,8 +120,8 @@ serve(async (req) => {
       coverageC: 'Error processing request',
       coverageD: 'Error processing request',
       deductible: 'Error processing request',
-      effectiveDate: null,
-      expirationDate: null
+      effectiveDate: 'Error processing request',
+      expirationDate: 'Error processing request'
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
