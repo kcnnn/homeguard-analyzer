@@ -21,6 +21,8 @@ Deno.serve(async (req) => {
       )
     }
 
+    console.log(`Searching for weather events in ${location} between ${effectiveDate} and ${expirationDate}`);
+
     // Create Supabase client
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -28,21 +30,35 @@ Deno.serve(async (req) => {
     )
 
     // Use OpenAI to search for weather events
-    const prompt = `Search for significant hail and windstorm events in ${location} between ${effectiveDate} and ${expirationDate}. For each event, provide:
+    const prompt = `Search for significant hail and windstorm events in ${location} between ${effectiveDate} and ${expirationDate}. 
+    Only return events that occurred within these exact dates.
+    
+    For each event, provide:
     1. The date (YYYY-MM-DD format)
     2. The type (either 'hail' or 'wind')
     3. A brief description of the event
     4. If available, a source name and URL
     
-    Format as JSON array with objects containing: date, type, details, source (optional), sourceUrl (optional).
-    Example: [{"date": "2023-05-15", "type": "hail", "details": "Golf ball sized hail damaged vehicles", "source": "Weather Service", "sourceUrl": "http://example.com"}]`
+    Return the results as a JSON array with objects containing: date, type, details, source (optional), sourceUrl (optional).
+    If no events are found, return an empty array.
+    
+    Example response format:
+    [
+      {
+        "date": "2023-05-15",
+        "type": "hail",
+        "details": "Golf ball sized hail damaged vehicles",
+        "source": "Weather Service",
+        "sourceUrl": "http://example.com"
+      }
+    ]`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: "You are a helpful assistant that searches for historical weather events and returns them in JSON format."
+          content: "You are a helpful assistant that searches for historical weather events and returns them in JSON format. Only return events within the specified date range."
         },
         {
           role: "user",
@@ -52,10 +68,20 @@ Deno.serve(async (req) => {
       response_format: { type: "json_object" },
     });
 
-    const response = JSON.parse(completion.choices[0].message.content);
-    const events = response.events || [];
+    const responseContent = completion.choices[0].message.content;
+    console.log('OpenAI response:', responseContent);
 
-    console.log('Found weather events:', events);
+    let events = [];
+    try {
+      const parsedResponse = JSON.parse(responseContent);
+      // The response might be in the format { events: [...] } or just an array
+      events = Array.isArray(parsedResponse) ? parsedResponse : (parsedResponse.events || []);
+    } catch (error) {
+      console.error('Error parsing OpenAI response:', error);
+      events = [];
+    }
+
+    console.log('Parsed events:', events);
 
     // Store events in the database
     for (const event of events) {
