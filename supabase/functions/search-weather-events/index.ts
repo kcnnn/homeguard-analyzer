@@ -24,8 +24,8 @@ async function searchNOAAEvents(location: string, startDate: string, endDate: st
 
     console.log('Formatted NOAA search params:', { city, state, formattedStartDate, formattedEndDate });
 
-    // Using a more general endpoint that doesn't require specific location IDs
-    const url = `https://www.ncdc.noaa.gov/cdo-web/api/v2/data?datasetid=GHCND&startdate=${formattedStartDate}&enddate=${formattedEndDate}&limit=1000`;
+    // Request specifically for hail (GH) and wind (WS) data
+    const url = `https://www.ncdc.noaa.gov/cdo-web/api/v2/data?datasetid=GHCND&datatypeid=GH,WS&startdate=${formattedStartDate}&enddate=${formattedEndDate}&limit=1000`;
     
     console.log('NOAA API URL:', url);
     console.log('Using NOAA API Key:', noaaApiKey ? 'Key is present' : 'No key found');
@@ -50,16 +50,22 @@ async function searchNOAAEvents(location: string, startDate: string, endDate: st
       return [];
     }
 
-    // Transform NOAA events into our format
+    // Transform NOAA events into our format with better type detection
     return data.results
       .filter((event: any) => event.datatype && event.date)
-      .map((event: any) => ({
-        date: event.date.split('T')[0],
-        type: event.datatype.includes('WIND') ? 'wind' : 'hail',
-        details: `${event.datatype}: ${event.value} ${event.unit || ''}`,
-        source: 'NOAA National Weather Service',
-        sourceUrl: 'https://www.ncdc.noaa.gov/stormevents/',
-      }));
+      .map((event: any) => {
+        // Determine event type based on NOAA data type codes
+        const isHail = event.datatype === 'GH' || event.datatype.includes('HAIL');
+        const isWind = event.datatype === 'WS' || event.datatype.includes('WIND');
+        
+        return {
+          date: event.date.split('T')[0],
+          type: isHail ? 'hail' : isWind ? 'wind' : 'hail', // Default to hail if unclear
+          details: `${isHail ? 'Hail' : 'Wind'} Event - ${event.datatype}: ${event.value} ${event.unit || ''}`,
+          source: 'NOAA National Weather Service',
+          sourceUrl: 'https://www.ncdc.noaa.gov/stormevents/',
+        };
+      });
 
   } catch (error) {
     console.error('Error fetching NOAA data:', error);
