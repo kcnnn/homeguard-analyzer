@@ -11,12 +11,7 @@ export const OpenAiEvents = ({ isLoading, events }: OpenAiEventsProps) => {
   return (
     <div className="mt-8 pt-8 border-t border-gray-200">
       <h3 className="text-lg font-semibold mb-4">Additional Reported Events</h3>
-      {isLoading ? (
-        <div className="flex flex-col items-center justify-center space-y-4 py-8">
-          <Loader className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Searching additional sources...</p>
-        </div>
-      ) : events.length > 0 ? (
+      {events.length > 0 ? (
         <>
           <p className="text-sm text-gray-500 mb-4">
             While no official NOAA records were found, our AI search found these potential weather events. Please note that these are not officially verified records.
@@ -50,7 +45,18 @@ export const OpenAiEvents = ({ isLoading, events }: OpenAiEventsProps) => {
               </div>
             ))}
           </div>
+          {isLoading && (
+            <div className="mt-4 flex items-center justify-center space-x-2 text-sm text-gray-500">
+              <Loader className="h-4 w-4 animate-spin" />
+              <span>Updating results...</span>
+            </div>
+          )}
         </>
+      ) : isLoading ? (
+        <div className="flex flex-col items-center justify-center space-y-4 py-8">
+          <Loader className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Searching additional sources...</p>
+        </div>
       ) : (
         <Alert>
           <AlertDescription>
