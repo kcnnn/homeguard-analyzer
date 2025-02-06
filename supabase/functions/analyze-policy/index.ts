@@ -21,7 +21,7 @@ serve(async (req) => {
       throw new Error('No image data provided');
     }
 
-    console.log('Received image data, sending to OpenAI...');
+    console.log('Sending request to OpenAI...');
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -35,7 +35,17 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are an expert insurance policy analyzer. Your task is to extract specific coverage information and return it in a strict JSON format. The response must be a valid JSON object with these exact fields: coverageA, coverageB, coverageC, coverageD, deductible, effectiveDate, and expirationDate. All values must be strings. Currency values must include the dollar sign and commas (e.g., "$250,000"). Dates must be in MM/DD/YYYY format.`
+            content: `You are an expert insurance policy analyzer. Extract coverage information and return it in this EXACT JSON format:
+            {
+              "coverageA": "$XXX,XXX",
+              "coverageB": "$XXX,XXX",
+              "coverageC": "$XXX,XXX",
+              "coverageD": "$XXX,XXX",
+              "deductible": "$X,XXX",
+              "effectiveDate": "MM/DD/YYYY",
+              "expirationDate": "MM/DD/YYYY"
+            }
+            Use "Not found" if a value cannot be determined. Do not include any additional text or explanation.`
           },
           {
             role: 'user',
@@ -46,7 +56,7 @@ serve(async (req) => {
               },
               {
                 type: 'text',
-                text: 'Extract the coverage information and return it as a JSON object. Include ONLY these fields: coverageA, coverageB, coverageC, coverageD, deductible, effectiveDate, and expirationDate. Do not include any explanatory text or markdown formatting.'
+                text: 'Extract the coverage information and return it as a JSON object with the exact format specified. No additional text or explanations.'
               }
             ]
           }
@@ -54,67 +64,70 @@ serve(async (req) => {
       }),
     });
 
+    if (!response.ok) {
+      console.error('OpenAI API error:', await response.text());
+      throw new Error('Failed to get response from OpenAI');
+    }
+
     const data = await response.json();
-    console.log('OpenAI API Response:', data);
+    console.log('OpenAI raw response:', JSON.stringify(data));
+
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error('Unexpected OpenAI response structure:', data);
+      throw new Error('Invalid response structure from OpenAI');
+    }
+
+    let content = data.choices[0].message.content.trim();
+    console.log('Raw content from OpenAI:', content);
+
+    // Clean up the content to ensure we get valid JSON
+    if (content.includes('```json')) {
+      content = content.split('```json')[1].split('```')[0].trim();
+    } else if (content.includes('```')) {
+      content = content.split('```')[1].split('```')[0].trim();
+    }
+
+    // If there's still text before or after the JSON object, extract just the JSON
+    if (content.includes('{')) {
+      const startIndex = content.indexOf('{');
+      const endIndex = content.lastIndexOf('}') + 1;
+      content = content.substring(startIndex, endIndex);
+    }
+
+    console.log('Cleaned content before parsing:', content);
 
     let policyDetails;
     try {
-      const content = data.choices[0].message.content;
-      console.log('Raw content from OpenAI:', content);
-      
-      // Clean up the content to ensure we get valid JSON
-      let jsonContent = content.trim();
-      
-      // Remove any markdown formatting
-      if (jsonContent.includes('```json')) {
-        jsonContent = jsonContent.split('```json')[1].split('```')[0].trim();
-      } else if (jsonContent.includes('```')) {
-        jsonContent = jsonContent.split('```')[1].split('```')[0].trim();
-      }
-      
-      // If there's still text before or after the JSON object, extract just the JSON
-      if (jsonContent.includes('{')) {
-        const startIndex = jsonContent.indexOf('{');
-        const endIndex = jsonContent.lastIndexOf('}') + 1;
-        jsonContent = jsonContent.substring(startIndex, endIndex);
-      }
-      
-      console.log('Cleaned content before parsing:', jsonContent);
-      
-      try {
-        policyDetails = JSON.parse(jsonContent);
-      } catch (parseError) {
-        console.error('JSON parse error:', parseError);
-        throw new Error('Failed to parse JSON response');
-      }
-      
-      // Validate and ensure all required fields exist
-      const requiredFields = ['coverageA', 'coverageB', 'coverageC', 'coverageD', 'deductible', 'effectiveDate', 'expirationDate'];
-      for (const field of requiredFields) {
-        if (!policyDetails[field]) {
-          policyDetails[field] = 'Not found';
-        }
-        // Ensure currency fields have proper formatting
-        if (['coverageA', 'coverageB', 'coverageC', 'coverageD', 'deductible'].includes(field)) {
-          if (policyDetails[field] !== 'Not found' && !policyDetails[field].startsWith('$')) {
-            policyDetails[field] = `$${policyDetails[field].replace(/^\$/, '')}`;
-          }
-        }
-      }
-      
-      console.log('Successfully parsed and validated policy details:', policyDetails);
-    } catch (error) {
-      console.error('Error processing OpenAI response:', error);
-      throw new Error(`Failed to process OpenAI response: ${error.message}`);
+      policyDetails = JSON.parse(content);
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError);
+      throw new Error('Failed to parse JSON response');
     }
+
+    // Validate and ensure all required fields exist
+    const requiredFields = ['coverageA', 'coverageB', 'coverageC', 'coverageD', 'deductible', 'effectiveDate', 'expirationDate'];
+    for (const field of requiredFields) {
+      if (!policyDetails[field]) {
+        policyDetails[field] = 'Not found';
+      }
+      // Ensure currency fields have proper formatting
+      if (['coverageA', 'coverageB', 'coverageC', 'coverageD', 'deductible'].includes(field)) {
+        if (policyDetails[field] !== 'Not found' && !policyDetails[field].startsWith('$')) {
+          policyDetails[field] = `$${policyDetails[field].replace(/^\$/, '')}`;
+        }
+      }
+    }
+
+    console.log('Final policy details:', JSON.stringify(policyDetails));
 
     return new Response(JSON.stringify(policyDetails), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
+
   } catch (error) {
     console.error('Error in analyze-policy function:', error);
-    return new Response(JSON.stringify({ 
-      error: error.message,
+    return new Response(JSON.stringify({
+      error: `Failed to process OpenAI response: ${error.message}`,
       coverageA: 'Error processing request',
       coverageB: 'Error processing request',
       coverageC: 'Error processing request',
