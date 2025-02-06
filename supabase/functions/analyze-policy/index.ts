@@ -33,7 +33,7 @@ const formatBase64Image = (base64Image: string): string => {
   return base64Image.replace(/^data:image\/[a-z]+;base64,/, '');
 };
 
-const createSystemPrompt = (): string => {
+const createSystemPromptForCoverages = (): string => {
   return `You are an expert insurance policy analyzer. Extract coverage amounts and dates from insurance policy declaration pages.
 Please analyze this insurance policy declaration page and extract the following information in a strict JSON format.
 
@@ -43,8 +43,6 @@ Required format:
   "coverageB": "$XX,XXX",
   "coverageC": "$XX,XXX",
   "coverageD": "$XX,XXX",
-  "deductible": "$X,XXX",
-  "windstormDeductible": "$X,XXX or X%",
   "effectiveDate": "MM/DD/YYYY",
   "expirationDate": "MM/DD/YYYY",
   "location": "Full property address"
@@ -56,18 +54,39 @@ Important rules:
 3. Return ONLY the JSON object, no additional text or explanations
 4. If you cannot find a value, use "Not found" as the value
 5. The location MUST be the complete property address
-6. Format all monetary values with proper commas and dollar signs, e.g. $100,000 not $100000
-7. For deductibles:
-   - The "deductible" field MUST be the All Other Perils (AOP) deductible amount with $ symbol
-   - The "windstormDeductible" field MUST be either a fixed amount with $ (e.g. "$2,500") or a percentage with % (e.g. "2%")
-   - For the AOP deductible, ALWAYS use dollar amounts with $ symbol
-   - For windstorm deductible, if it's a percentage add the % symbol, if it's a dollar amount add the $ symbol
-8. Do not include any additional fields beyond what is specified above`;
+6. Format all monetary values with proper commas and dollar signs, e.g. $100,000 not $100000`;
 };
 
-const validatePolicyDetails = (parsedContent: any): PolicyDetails => {
-  console.log('Validating policy details:', parsedContent);
+const createSystemPromptForDeductibles = (): string => {
+  return `You are an expert insurance policy analyzer. Extract deductible information from insurance policy declaration pages.
+Please analyze this insurance policy declaration page and extract ONLY the deductible information in a strict JSON format.
+
+Required format:
+{
+  "deductible": "$X,XXX",
+  "windstormDeductible": "$X,XXX or X%"
+}
+
+Important rules:
+1. The "deductible" field MUST be the All Other Perils (AOP) deductible amount with $ symbol
+2. The "windstormDeductible" field MUST be either a fixed amount with $ (e.g. "$2,500") or a percentage with % (e.g. "2%")
+3. Return ONLY the JSON object, no additional text or explanations
+4. If you cannot find a value, use "Not found" as the value
+5. For the AOP deductible, ALWAYS use dollar amounts with $ symbol
+6. For windstorm deductible, if it's a percentage add the % symbol, if it's a dollar amount add the $ symbol`;
+};
+
+const validatePolicyDetails = (coverages: any, deductibles: any): PolicyDetails => {
+  console.log('Validating policy details - Coverages:', coverages, 'Deductibles:', deductibles);
   
+  // Combine coverages and deductibles
+  const parsedContent = {
+    ...coverages,
+    deductible: deductibles.deductible || 'Not found',
+    windstormDeductible: deductibles.windstormDeductible || 'Not found',
+    weatherEvents: []
+  };
+
   const requiredFields = [
     'coverageA', 'coverageB', 'coverageC', 'coverageD',
     'deductible', 'windstormDeductible', 'effectiveDate',
@@ -82,7 +101,7 @@ const validatePolicyDetails = (parsedContent: any): PolicyDetails => {
     }
   }
 
-  // Ensure monetary values have $ symbol (except windstormDeductible which can be a percentage)
+  // Ensure monetary values have $ symbol
   const monetaryFields = ['coverageA', 'coverageB', 'coverageC', 'coverageD'];
   
   for (const field of monetaryFields) {
@@ -120,14 +139,11 @@ const validatePolicyDetails = (parsedContent: any): PolicyDetails => {
     }
   }
 
-  return {
-    ...parsedContent,
-    weatherEvents: []
-  };
+  return parsedContent;
 };
 
-const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
-  console.log('Starting policy image analysis...');
+const analyzePolicyImage = async (imageUrl: string, isDeductiblesImage: boolean): Promise<any> => {
+  console.log(`Starting policy image analysis for ${isDeductiblesImage ? 'deductibles' : 'coverages'}...`);
   
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -141,7 +157,7 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
         messages: [
           {
             role: 'system',
-            content: createSystemPrompt()
+            content: isDeductiblesImage ? createSystemPromptForDeductibles() : createSystemPromptForCoverages()
           },
           {
             role: 'user',
@@ -154,7 +170,7 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
               },
               {
                 type: 'text',
-                text: 'Please analyze this insurance policy declaration page and extract the required information in the specified JSON format.'
+                text: `Please analyze this insurance policy declaration page and extract ${isDeductiblesImage ? 'the deductible information' : 'the coverage and policy information'} in the specified JSON format.`
               }
             ]
           }
@@ -181,9 +197,7 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
     console.log('Raw content to parse:', content);
     
     try {
-      const parsedContent = JSON.parse(content);
-      console.log('Parsed content:', parsedContent);
-      return validatePolicyDetails(parsedContent);
+      return JSON.parse(content);
     } catch (parseError) {
       console.error('Error parsing policy details:', parseError);
       console.error('Raw content that failed to parse:', content);
@@ -213,8 +227,16 @@ serve(async (req) => {
     const formattedBase64 = formatBase64Image(base64Image);
     const imageUrl = `data:image/jpeg;base64,${formattedBase64}`;
     
-    console.log('Analyzing policy declaration page...');
-    const policyDetails = await analyzePolicyImage(imageUrl);
+    // Analyze the image for coverages first
+    console.log('Analyzing policy declaration page for coverages...');
+    const coverages = await analyzePolicyImage(imageUrl, false);
+    
+    // Then analyze for deductibles
+    console.log('Analyzing policy declaration page for deductibles...');
+    const deductibles = await analyzePolicyImage(imageUrl, true);
+    
+    // Combine and validate the results
+    const policyDetails = validatePolicyDetails(coverages, deductibles);
     
     return new Response(JSON.stringify(policyDetails), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
