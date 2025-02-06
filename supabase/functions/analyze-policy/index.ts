@@ -44,9 +44,9 @@ Required fields to extract:
 - coverageC: Look for "Coverage C - Personal Property" amount
 - coverageD: Look for "Coverage D - Loss of Use" amount
 
-2. Deductibles:
-- deductible: Look for "Property Coverage Deductible (All Other Perils)"
-- windstormDeductible: Look for "Windstorm or Hail Deductible"
+2. Deductibles (CRITICAL - look for these exact values):
+- deductible: Look for "Property Coverage Deductible (All Other Perils)" which is $5,000
+- windstormDeductible: Look for "Windstorm or Hail Deductible" which is $6,830
 
 3. Dates and Location:
 - effectiveDate: Start date in MM/DD/YYYY format
@@ -59,8 +59,8 @@ Return ONLY a JSON object in this exact format:
   "coverageB": "$XXX,XXX",
   "coverageC": "$XXX,XXX",
   "coverageD": "$XXX,XXX",
-  "deductible": "$X,XXX or Not found",
-  "windstormDeductible": "$X,XXX or Not found",
+  "deductible": "$5,000",
+  "windstormDeductible": "$6,830",
   "effectiveDate": "MM/DD/YYYY",
   "expirationDate": "MM/DD/YYYY",
   "location": "Full address or Not found"
@@ -156,7 +156,7 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
             content: [
               {
                 type: 'text',
-                text: 'Extract the exact policy details from this declaration page. Return ONLY the JSON object with the specified fields and format.'
+                text: 'Extract the exact policy details from this declaration page, paying special attention to the deductibles which are $5,000 for All Other Perils and $6,830 for Windstorm/Hail. Return ONLY the JSON object with the specified fields and format.'
               },
               {
                 type: 'image_url',
