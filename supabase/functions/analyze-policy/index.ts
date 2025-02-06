@@ -60,6 +60,8 @@ Important rules:
 };
 
 const validatePolicyDetails = (parsedContent: any): PolicyDetails => {
+  console.log('Validating policy details:', parsedContent);
+  
   const requiredFields = [
     'coverageA', 'coverageB', 'coverageC', 'coverageD',
     'deductible', 'windstormDeductible', 'effectiveDate',
@@ -102,7 +104,7 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "gpt-4-vision-preview",
         messages: [
           {
             role: 'system',
@@ -123,7 +125,8 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
               }
             ]
           }
-        ]
+        ],
+        max_tokens: 1000
       }),
     });
 
