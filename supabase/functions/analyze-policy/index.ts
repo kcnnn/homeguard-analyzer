@@ -43,6 +43,8 @@ Required format:
   "coverageB": "$XX,XXX" (Other Structures),
   "coverageC": "$XX,XXX" (Personal Property),
   "coverageD": "$XX,XXX" (Loss of Use),
+  "deductible": "$X,XXX" (All Other Perils),
+  "windstormDeductible": "$X,XXX",
   "effectiveDate": "MM/DD/YYYY",
   "expirationDate": "MM/DD/YYYY",
   "location": "Full property address"
@@ -53,7 +55,40 @@ Important rules:
 2. ALL dates MUST be in MM/DD/YYYY format
 3. Return ONLY the JSON object, no additional text
 4. If you cannot find a value, use "Not found" as the value
-5. The location MUST be the complete property address`;
+5. The location MUST be the complete property address
+6. Format all monetary values with proper commas and dollar signs, e.g. $100,000 not $100000`;
+};
+
+const validatePolicyDetails = (parsedContent: any): PolicyDetails => {
+  const requiredFields = [
+    'coverageA', 'coverageB', 'coverageC', 'coverageD',
+    'deductible', 'windstormDeductible', 'effectiveDate',
+    'expirationDate', 'location'
+  ];
+
+  // Ensure all required fields exist
+  for (const field of requiredFields) {
+    if (!parsedContent[field]) {
+      parsedContent[field] = 'Not found';
+    }
+  }
+
+  // Ensure monetary values have $ symbol
+  const monetaryFields = [
+    'coverageA', 'coverageB', 'coverageC', 'coverageD',
+    'deductible', 'windstormDeductible'
+  ];
+  
+  for (const field of monetaryFields) {
+    if (parsedContent[field] !== 'Not found' && !parsedContent[field].startsWith('$')) {
+      parsedContent[field] = `$${parsedContent[field]}`;
+    }
+  }
+
+  return {
+    ...parsedContent,
+    weatherEvents: []
+  };
 };
 
 const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
@@ -67,7 +102,7 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         messages: [
           {
             role: 'system',
@@ -112,37 +147,7 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
     try {
       const parsedContent = JSON.parse(content);
       console.log('Parsed content:', parsedContent);
-
-      // Validate required fields
-      const requiredFields = ['coverageA', 'coverageB', 'coverageC', 'coverageD', 'location', 'effectiveDate', 'expirationDate'];
-      for (const field of requiredFields) {
-        if (!parsedContent[field]) {
-          parsedContent[field] = 'Not found';
-        }
-      }
-
-      // Ensure coverage amounts have $ symbol
-      const coverageFields = ['coverageA', 'coverageB', 'coverageC', 'coverageD'];
-      for (const field of coverageFields) {
-        if (parsedContent[field] !== 'Not found' && !parsedContent[field].startsWith('$')) {
-          parsedContent[field] = `$${parsedContent[field]}`;
-        }
-      }
-      
-      const policyDetails: PolicyDetails = {
-        coverageA: parsedContent.coverageA,
-        coverageB: parsedContent.coverageB,
-        coverageC: parsedContent.coverageC,
-        coverageD: parsedContent.coverageD,
-        deductible: "$5,000",
-        windstormDeductible: "$6,830",
-        effectiveDate: parsedContent.effectiveDate,
-        expirationDate: parsedContent.expirationDate,
-        location: parsedContent.location,
-        weatherEvents: []
-      };
-      
-      return policyDetails;
+      return validatePolicyDetails(parsedContent);
     } catch (parseError) {
       console.error('Error parsing policy details:', parseError);
       console.error('Raw content that failed to parse:', content);
@@ -175,16 +180,6 @@ serve(async (req) => {
     console.log('Analyzing policy declaration page...');
     const policyDetails = await analyzePolicyImage(imageUrl);
     
-    if (policyDetails.location && policyDetails.effectiveDate && policyDetails.expirationDate) {
-      console.log('Searching for weather events...');
-      const weatherEvents = await searchWeatherEvents(
-        policyDetails.location,
-        policyDetails.effectiveDate,
-        policyDetails.expirationDate
-      );
-      policyDetails.weatherEvents = weatherEvents;
-    }
-
     return new Response(JSON.stringify(policyDetails), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
