@@ -3,6 +3,7 @@ import { FileUpload } from '@/components/FileUpload';
 import { PolicyDetails } from '@/components/PolicyDetails';
 import { WeatherEvents } from '@/components/WeatherEvents';
 import { toast } from '@/components/ui/use-toast';
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -12,20 +13,19 @@ const Index = () => {
   const handleFileUpload = async (file: File) => {
     setIsAnalyzing(true);
     try {
-      // Simulate API call for demo purposes
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Updated mock data with correct Coverage A amount
-      setPolicyDetails({
-        coverageA: "$683,000",
-        coverageB: "$50,000",
-        coverageC: "$250,000",
-        coverageD: "$100,000",
-        deductible: "$2,500",
-        effectiveDate: "2023-01-01",
-        expirationDate: "2024-01-01"
+      // Create a temporary URL for the uploaded file
+      const imageUrl = URL.createObjectURL(file);
+
+      // Call the Supabase Edge Function to analyze the policy
+      const { data, error } = await supabase.functions.invoke('analyze-policy', {
+        body: { imageUrl },
       });
 
+      if (error) throw error;
+
+      setPolicyDetails(data);
+      
+      // For demo purposes, keeping the weather events mock data
       setWeatherEvents([
         {
           date: "2023-03-15",
@@ -44,6 +44,7 @@ const Index = () => {
         description: "Your policy has been successfully analyzed.",
       });
     } catch (error) {
+      console.error('Error analyzing policy:', error);
       toast({
         title: "Error",
         description: "Failed to analyze the policy. Please try again.",

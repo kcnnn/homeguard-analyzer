@@ -1,1 +1,10 @@
 project_id = "cmjsqliqmfpoxklunhqv"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage"]
+
+[[functions]]
+name = "analyze-policy"
+verify_jwt = false
