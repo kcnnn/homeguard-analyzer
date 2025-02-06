@@ -37,7 +37,7 @@ const createFetchOptions = (openAIApiKey: string, location: string, startDate: s
   },
   signal,
   body: JSON.stringify({
-    model: 'gpt-4o',  // Changed to use the more powerful model
+    model: 'gpt-4',  // Fixed: Using the correct model name
     messages: [
       { role: 'system', content: createSystemPrompt() },
       { role: 'user', content: createUserPrompt(location, startDate, endDate) }
