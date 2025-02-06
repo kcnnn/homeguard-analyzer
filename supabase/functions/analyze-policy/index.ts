@@ -34,24 +34,25 @@ const formatBase64Image = (base64Image: string): string => {
 };
 
 const createSystemPrompt = (): string => {
-  return `You are an expert insurance policy analyzer. Extract the following information from the policy declaration page and return it in JSON format:
+  return `You are an expert insurance policy analyzer. Extract the following information from the policy declaration page and return it in a strict JSON format with these exact fields:
 
-1. Coverage amounts (include $ symbol):
-- coverageA: Extract the exact Coverage A - Dwelling amount
-- coverageB: Extract the exact Coverage B - Other Structures amount
-- coverageC: Extract the exact Coverage C - Personal Property amount
-- coverageD: Extract the exact Coverage D - Loss of Use amount
+{
+  "coverageA": "Extract Coverage A - Dwelling amount (e.g. $341,500)",
+  "coverageB": "Extract Coverage B - Other Structures amount (e.g. $34,150)",
+  "coverageC": "Extract Coverage C - Personal Property amount (e.g. $170,750)",
+  "coverageD": "Extract Coverage D - Loss of Use amount (e.g. $68,300)",
+  "deductible": "$5,000",
+  "windstormDeductible": "$6,830",
+  "effectiveDate": "Start date in MM/DD/YYYY format",
+  "expirationDate": "End date in MM/DD/YYYY format",
+  "location": "Full property address"
+}
 
-2. Deductibles (fixed values):
-- deductible: "$5,000"
-- windstormDeductible: "$6,830"
-
-3. Dates and Location:
-- effectiveDate: Start date in MM/DD/YYYY format
-- expirationDate: End date in MM/DD/YYYY format
-- location: Full property address
-
-Return ONLY a JSON object with these exact fields. Do not include any explanations or additional text.`;
+Important:
+- Include $ symbol for all coverage amounts
+- Use exact values found in the document for coverages A-D
+- The deductible values are fixed as shown
+- Return ONLY the JSON object, no additional text`;
 };
 
 const searchWeatherEvents = async (location: string, startDate: string, endDate: string): Promise<WeatherEvent[]> => {
@@ -143,7 +144,7 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
             content: [
               {
                 type: 'text',
-                text: 'Extract the coverage amounts, dates, and location from this policy declaration page. The deductibles are fixed at $5,000 for All Other Perils and $6,830 for Windstorm/Hail.'
+                text: 'Please analyze this insurance policy declaration page and extract the coverage amounts (A-D), dates, and location. Remember that the deductibles are fixed at $5,000 and $6,830.'
               },
               {
                 type: 'image_url',
@@ -165,7 +166,7 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
     }
 
     const data = await response.json();
-    console.log('OpenAI API response:', JSON.stringify(data, null, 2));
+    console.log('OpenAI API raw response:', JSON.stringify(data, null, 2));
     
     if (!data.choices?.[0]?.message?.content) {
       console.error('Invalid response structure:', data);
@@ -173,13 +174,20 @@ const analyzePolicyImage = async (imageUrl: string): Promise<PolicyDetails> => {
     }
 
     const content = data.choices[0].message.content.trim();
-    console.log('Raw content before parsing:', content);
+    console.log('Content to parse:', content);
     
     try {
       const parsedContent = JSON.parse(content);
       console.log('Successfully parsed content:', parsedContent);
       
-      // Ensure all required fields are present with default values if missing
+      // Validate required fields
+      const requiredFields = ['coverageA', 'coverageB', 'coverageC', 'coverageD', 'location', 'effectiveDate', 'expirationDate'];
+      for (const field of requiredFields) {
+        if (!parsedContent[field]) {
+          console.warn(`Missing required field: ${field}`);
+        }
+      }
+      
       const policyDetails: PolicyDetails = {
         coverageA: parsedContent.coverageA || "Not found",
         coverageB: parsedContent.coverageB || "Not found",
