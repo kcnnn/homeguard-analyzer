@@ -58,9 +58,10 @@ Important rules:
 5. The location MUST be the complete property address
 6. Format all monetary values with proper commas and dollar signs, e.g. $100,000 not $100000
 7. For deductibles:
-   - The "deductible" field should be the All Other Perils (AOP) deductible amount with $ symbol
-   - The "windstormDeductible" field can be either a fixed amount (e.g. "$2,500") or a percentage (e.g. "2%")
-   - Make sure to include the % symbol for percentage deductibles
+   - The "deductible" field MUST be the All Other Perils (AOP) deductible amount with $ symbol
+   - The "windstormDeductible" field MUST be either a fixed amount with $ (e.g. "$2,500") or a percentage with % (e.g. "2%")
+   - For the AOP deductible, ALWAYS use dollar amounts with $ symbol
+   - For windstorm deductible, if it's a percentage add the % symbol, if it's a dollar amount add the $ symbol
 8. Do not include any additional fields beyond what is specified above`;
 };
 
@@ -82,10 +83,7 @@ const validatePolicyDetails = (parsedContent: any): PolicyDetails => {
   }
 
   // Ensure monetary values have $ symbol (except windstormDeductible which can be a percentage)
-  const monetaryFields = [
-    'coverageA', 'coverageB', 'coverageC', 'coverageD',
-    'deductible'
-  ];
+  const monetaryFields = ['coverageA', 'coverageB', 'coverageC', 'coverageD'];
   
   for (const field of monetaryFields) {
     if (parsedContent[field] !== 'Not found' && !parsedContent[field].startsWith('$')) {
@@ -94,12 +92,22 @@ const validatePolicyDetails = (parsedContent: any): PolicyDetails => {
     }
   }
 
-  // Special handling for windstorm deductible (can be $ amount or percentage)
+  // Handle AOP deductible (must be dollar amount)
+  if (parsedContent.deductible !== 'Not found') {
+    const deductibleValue = parsedContent.deductible.trim();
+    if (!deductibleValue.startsWith('$')) {
+      const numericValue = parseFloat(deductibleValue.replace(/[^0-9.]/g, ''));
+      if (!isNaN(numericValue)) {
+        parsedContent.deductible = `$${numericValue.toLocaleString()}`;
+      }
+    }
+  }
+
+  // Handle windstorm deductible (can be $ or %)
   if (parsedContent.windstormDeductible !== 'Not found') {
     const value = parsedContent.windstormDeductible.trim();
     if (!value.startsWith('$') && !value.endsWith('%')) {
-      // Try to parse as a number
-      const numericValue = parseFloat(value);
+      const numericValue = parseFloat(value.replace(/[^0-9.]/g, ''));
       if (!isNaN(numericValue)) {
         // If it's a small number (less than 100), assume it's a percentage
         if (numericValue < 100) {
