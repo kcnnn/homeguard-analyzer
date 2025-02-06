@@ -1,3 +1,4 @@
+
 import { OpenAIRequestOptions } from './types.ts';
 import { createSystemPrompt, createUserPrompt } from './prompts.ts';
 
@@ -12,15 +13,13 @@ export const createFetchOptions = (openAIApiKey: string, options: OpenAIRequestO
   },
   signal: options.signal,
   body: JSON.stringify({
-    model: 'gpt-4',
+    model: 'gpt-4o-mini',
     messages: [
       { role: 'system', content: createSystemPrompt() },
       { role: 'user', content: createUserPrompt(options.location, options.startDate, options.endDate) }
     ],
     temperature: 0.7,
-    max_tokens: MAX_TOKENS,
-    tools: [{ type: "retrieval" }],
-    tool_choice: "auto"
+    max_tokens: MAX_TOKENS
   }),
 });
 
