@@ -19,10 +19,23 @@ async function searchNOAAEvents(location: string, startDate: string, endDate: st
 
     // Extract city and state from location string
     const locationParts = location.split(',');
-    const city = locationParts[0].trim();
-    const state = locationParts[1]?.trim().split(' ')[0];
+    let city = '';
+    let state = '';
 
-    console.log('Formatted NOAA search params:', { city, state, formattedStartDate, formattedEndDate });
+    // Handle different location formats
+    if (location.includes(',')) {
+      // Format: "City, State"
+      city = locationParts[0].trim();
+      state = locationParts[1]?.trim().split(' ')[0];
+    } else if (location.includes(' TX ')) {
+      // Format: "Street, CITY, TX ZIP"
+      const parts = location.split(' TX ');
+      const addressParts = parts[0].split(',');
+      city = addressParts[addressParts.length - 1].trim();
+      state = 'TX';
+    }
+
+    console.log('Parsed location:', { city, state, originalLocation: location });
 
     // Request specifically for hail (GH) and wind (WS) data
     const url = `https://www.ncdc.noaa.gov/cdo-web/api/v2/data?datasetid=GHCND&datatypeid=GH,WS&startdate=${formattedStartDate}&enddate=${formattedEndDate}&limit=1000`;
@@ -51,21 +64,27 @@ async function searchNOAAEvents(location: string, startDate: string, endDate: st
     }
 
     // Transform NOAA events into our format with better type detection
-    return data.results
+    const events = data.results
       .filter((event: any) => event.datatype && event.date)
       .map((event: any) => {
         // Determine event type based on NOAA data type codes
         const isHail = event.datatype === 'GH' || event.datatype.includes('HAIL');
         const isWind = event.datatype === 'WS' || event.datatype.includes('WIND');
         
+        const details = `${isHail ? 'Hail' : 'Wind'} Event - ${event.datatype}: ${event.value} ${event.unit || ''}`;
+        console.log('Processing event:', { date: event.date, type: isHail ? 'hail' : 'wind', details });
+        
         return {
           date: event.date.split('T')[0],
-          type: isHail ? 'hail' : isWind ? 'wind' : 'hail', // Default to hail if unclear
-          details: `${isHail ? 'Hail' : 'Wind'} Event - ${event.datatype}: ${event.value} ${event.unit || ''}`,
+          type: isHail ? 'hail' : 'wind',
+          details,
           source: 'NOAA National Weather Service',
           sourceUrl: 'https://www.ncdc.noaa.gov/stormevents/',
         };
       });
+
+    console.log('Processed NOAA events:', events);
+    return events;
 
   } catch (error) {
     console.error('Error fetching NOAA data:', error);
