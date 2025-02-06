@@ -12,14 +12,13 @@ export const createFetchOptions = (openAIApiKey: string, options: OpenAIRequestO
   },
   signal: options.signal,
   body: JSON.stringify({
-    model: 'gpt-4o',
+    model: 'gpt-4',
     messages: [
       { role: 'system', content: createSystemPrompt() },
       { role: 'user', content: createUserPrompt(options.location, options.startDate, options.endDate) }
     ],
     temperature: 0.7,
     max_tokens: MAX_TOKENS,
-    response_format: { type: "json_object" },
     tools: [{ type: "retrieval" }],
     tool_choice: "auto"
   }),

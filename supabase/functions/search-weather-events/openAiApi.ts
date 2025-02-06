@@ -31,30 +31,7 @@ export async function searchOpenAIEvents(
 
     const response = await fetch(
       'https://api.openai.com/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openAIApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            { 
-              role: 'system', 
-              content: 'You are a weather research assistant. Search the web for hail and windstorm events at the specified location and time period. Be thorough in your search and include all relevant details about damage and severity.' 
-            },
-            { 
-              role: 'user', 
-              content: `Find any hail or severe wind events near ${location} between ${startDate} and ${endDate}. Include specific dates, damage details, and source URLs when available.` 
-            }
-          ],
-          temperature: 0.7,
-          max_tokens: 1000,
-          tools: [{ type: "retrieval" }],
-          tool_choice: "auto"
-        })
-      }
+      createFetchOptions(openAIApiKey, options)
     );
 
     clearTimeout(timeoutId);
