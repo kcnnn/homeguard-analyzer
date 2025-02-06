@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
     )
 
     // Use OpenAI to search for weather events
-    const prompt = `Search for significant hail and windstorm events in ${location} that occurred between ${effectiveDate} and ${expirationDate}. 
+    const prompt = `Search the internet for significant hail and windstorm events in ${location} that occurred between ${effectiveDate} and ${expirationDate}. 
     This is VERY important: make sure to include the April 9, 2024 hail event if it falls within these dates.
     
     Only return events that occurred within these exact dates.
@@ -56,11 +56,11 @@ Deno.serve(async (req) => {
     ]`;
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",  // Using the more capable model
+      model: "gpt-4o",  // Using the more capable model with internet access
       messages: [
         {
           role: "system",
-          content: "You are a helpful assistant that searches for historical weather events and returns them in JSON format. Only return events within the specified date range. Make sure to include recent events from 2024 if they occurred within the date range."
+          content: "You are a helpful assistant with internet access that searches for historical weather events and returns them in JSON format. You should actively search the internet for recent weather events, especially from 2024, and verify the information before including it. Only return events within the specified date range."
         },
         {
           role: "user",
