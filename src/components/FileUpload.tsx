@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,8 +8,11 @@ interface FileUploadProps {
 }
 
 export const FileUpload = ({ onFileUpload }: FileUploadProps) => {
+  const [hasUploadedFiles, setHasUploadedFiles] = useState(false);
+
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
+      setHasUploadedFiles(true);
       onFileUpload(acceptedFiles);
     }
   }, [onFileUpload]);
@@ -39,7 +42,11 @@ export const FileUpload = ({ onFileUpload }: FileUploadProps) => {
             <>
               <p className="text-lg">Drag and drop your policy declarations pages here</p>
               <p className="text-sm text-gray-500">or</p>
-              <Button variant="outline">Browse Files</Button>
+              <Button 
+                variant={hasUploadedFiles ? "success" : "outline"}
+              >
+                Browse Files
+              </Button>
             </>
           )}
           <p className="text-sm text-gray-500">Supports multiple JPEG and PNG files</p>
