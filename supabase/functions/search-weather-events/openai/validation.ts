@@ -1,3 +1,4 @@
+
 import { WeatherEvent } from '../types.ts';
 
 export const validateAndParseEvent = (event: any): WeatherEvent | null => {
@@ -29,8 +30,13 @@ export const validateAndParseEvent = (event: any): WeatherEvent | null => {
 
 export const parseOpenAIResponse = (content: string) => {
   try {
-    console.log('Parsing OpenAI response:', content);
-    const parsed = JSON.parse(content);
+    console.log('Raw OpenAI response:', content);
+    
+    // Remove any markdown code block syntax if present
+    const cleanedContent = content.replace(/```json\n?|\n?```/g, '');
+    console.log('Cleaned content:', cleanedContent);
+    
+    const parsed = JSON.parse(cleanedContent);
     if (!parsed.events || !Array.isArray(parsed.events)) {
       console.warn('Invalid response structure:', parsed);
       return [];
