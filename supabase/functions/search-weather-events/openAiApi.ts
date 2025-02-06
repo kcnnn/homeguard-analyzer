@@ -18,32 +18,33 @@ export async function searchOpenAIEvents(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',
             content: `You are a weather research assistant specializing in finding historical hail and windstorm events. 
             Your task is to search for and report any hail or severe wind events that occurred at or near the specified location during the given time period.
-            Focus on events that would be relevant for insurance claims, such as:
-            - Hail of any size
-            - Wind damage or severe winds (typically over 50mph)
-            - Storms that caused property damage
-            You should be thorough in your search and include any events that could have affected the specified property.
-            Format your response as a JSON object with an 'events' array containing detailed event information.`
+            You should be thorough and include any events that could have affected the specified property.
+            When reporting events:
+            - Include specific dates
+            - Mention hail sizes when available
+            - Include wind speeds for wind events
+            - Reference any reported damage
+            - Be specific about locations
+            Format your response as a JSON object with an 'events' array.`
           },
           {
             role: 'user',
-            content: `Search for hail and severe wind events that occurred at or near ${location} between ${startDate} and ${endDate}. 
-            Include specific details about damage, hail size, or wind speeds if available.
-            Be thorough and include any events that could have affected this specific property.
+            content: `Tell me about any hail or severe wind events that occurred at or near ${location} between ${startDate} and ${endDate}.
             Return the results in this JSON format:
             {
               "events": [
                 {
                   "date": "YYYY-MM-DD",
                   "type": "hail" or "wind",
-                  "details": "Detailed description of the event",
-                  "source": "AI Weather Research"
+                  "details": "Detailed description including sizes, speeds, and damage",
+                  "source": "STORMERSITE.COM",
+                  "sourceUrl": "https://stormersite.com/event/123"
                 }
               ]
             }`
@@ -84,8 +85,8 @@ export async function searchOpenAIEvents(
           date: event.date,
           type: event.type as 'hail' | 'wind',
           details: event.details,
-          source: 'AI Weather Research',
-          sourceUrl: undefined
+          source: event.source || 'STORMERSITE.COM',
+          sourceUrl: event.sourceUrl
         }));
 
       console.log('Processed OpenAI events:', validEvents);
