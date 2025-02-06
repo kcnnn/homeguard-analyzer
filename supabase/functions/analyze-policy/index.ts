@@ -44,7 +44,7 @@ Required format:
   "coverageC": "$XX,XXX",
   "coverageD": "$XX,XXX",
   "deductible": "$X,XXX",
-  "windstormDeductible": "$X,XXX",
+  "windstormDeductible": "$X,XXX or X%",
   "effectiveDate": "MM/DD/YYYY",
   "expirationDate": "MM/DD/YYYY",
   "location": "Full property address"
@@ -57,7 +57,10 @@ Important rules:
 4. If you cannot find a value, use "Not found" as the value
 5. The location MUST be the complete property address
 6. Format all monetary values with proper commas and dollar signs, e.g. $100,000 not $100000
-7. Do not include any additional fields beyond what is specified above`;
+7. For deductibles:
+   - The "deductible" field should be the All Other Perils (AOP) deductible amount
+   - The "windstormDeductible" field can be either a fixed amount (e.g. "$2,500") or a percentage (e.g. "2%")
+8. Do not include any additional fields beyond what is specified above`;
 };
 
 const validatePolicyDetails = (parsedContent: any): PolicyDetails => {
@@ -77,16 +80,26 @@ const validatePolicyDetails = (parsedContent: any): PolicyDetails => {
     }
   }
 
-  // Ensure monetary values have $ symbol
+  // Ensure monetary values have $ symbol (except windstormDeductible which can be a percentage)
   const monetaryFields = [
     'coverageA', 'coverageB', 'coverageC', 'coverageD',
-    'deductible', 'windstormDeductible'
+    'deductible'
   ];
   
   for (const field of monetaryFields) {
     if (parsedContent[field] !== 'Not found' && !parsedContent[field].startsWith('$')) {
       console.warn(`Adding $ symbol to ${field}`);
       parsedContent[field] = `$${parsedContent[field]}`;
+    }
+  }
+
+  // Special handling for windstorm deductible (can be $ amount or percentage)
+  if (parsedContent.windstormDeductible !== 'Not found' && 
+      !parsedContent.windstormDeductible.startsWith('$') && 
+      !parsedContent.windstormDeductible.endsWith('%')) {
+    // If it's a number without % or $, assume it's a percentage
+    if (!isNaN(parseFloat(parsedContent.windstormDeductible))) {
+      parsedContent.windstormDeductible = `${parsedContent.windstormDeductible}%`;
     }
   }
 
