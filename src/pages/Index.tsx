@@ -16,6 +16,7 @@ const Index = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [policyDetails, setPolicyDetails] = useState<any[]>([]);
   const [weatherEvents, setWeatherEvents] = useState([]);
+  const [location, setLocation] = useState<string>('');
 
   const handleFileUpload = async (files: File[]) => {
     setIsAnalyzing(true);
@@ -23,7 +24,6 @@ const Index = () => {
 
     try {
       for (const file of files) {
-        // Validate file type
         if (!['image/jpeg', 'image/png'].includes(file.type)) {
           toast({
             title: "Invalid File Type",
@@ -33,7 +33,6 @@ const Index = () => {
           continue;
         }
 
-        // Convert the file to base64
         const reader = new FileReader();
         const base64Promise = new Promise((resolve, reject) => {
           reader.onload = () => resolve(reader.result);
@@ -42,7 +41,6 @@ const Index = () => {
         reader.readAsDataURL(file);
         const base64Image = await base64Promise;
 
-        // Call the Supabase Edge Function to analyze the policy
         const { data, error } = await supabase.functions.invoke('analyze-policy', {
           body: { base64Image },
         });
@@ -57,23 +55,17 @@ const Index = () => {
         }
 
         results.push(data);
+        
+        // Update weather events and location from the response
+        if (data.weatherEvents) {
+          setWeatherEvents(data.weatherEvents);
+        }
+        if (data.location) {
+          setLocation(data.location);
+        }
       }
 
       setPolicyDetails(results);
-      
-      // For demo purposes, keeping the weather events mock data
-      setWeatherEvents([
-        {
-          date: "2023-03-15",
-          type: "hail",
-          details: "Hail event with 1-inch hail reported"
-        },
-        {
-          date: "2023-07-22",
-          type: "wind",
-          details: "High winds recorded at 45mph"
-        }
-      ]);
 
       toast({
         title: "Analysis Complete",
@@ -112,7 +104,11 @@ const Index = () => {
               <CarouselNext />
             </Carousel>
           )}
-          <WeatherEvents isLoading={isAnalyzing} events={weatherEvents} />
+          <WeatherEvents 
+            isLoading={isAnalyzing} 
+            events={weatherEvents}
+            location={location} 
+          />
         </div>
       </div>
     </div>

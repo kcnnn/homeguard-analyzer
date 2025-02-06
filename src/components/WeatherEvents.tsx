@@ -11,9 +11,10 @@ interface WeatherEvent {
 interface WeatherEventsProps {
   isLoading: boolean;
   events: WeatherEvent[];
+  location?: string;
 }
 
-export const WeatherEvents = ({ isLoading, events }: WeatherEventsProps) => {
+export const WeatherEvents = ({ isLoading, events, location }: WeatherEventsProps) => {
   if (isLoading) {
     return (
       <Card className="w-full p-6">
@@ -31,9 +32,14 @@ export const WeatherEvents = ({ isLoading, events }: WeatherEventsProps) => {
 
   return (
     <Card className="w-full p-6">
-      <h2 className="text-2xl font-semibold mb-4">Weather Events</h2>
+      <h2 className="text-2xl font-semibold mb-2">Weather Events</h2>
+      {location && (
+        <p className="text-gray-600 mb-4">
+          Location: {location}
+        </p>
+      )}
       {events.length === 0 ? (
-        <p className="text-gray-500">No weather events found for the policy period.</p>
+        <p className="text-gray-500">No weather events found for the policy period at this location.</p>
       ) : (
         <div className="space-y-4">
           {events.map((event, index) => (
