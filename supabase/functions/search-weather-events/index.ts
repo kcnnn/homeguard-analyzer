@@ -55,12 +55,14 @@ Deno.serve(async (req) => {
       }
     ]`;
 
+    console.log('Sending prompt to OpenAI:', prompt);
+
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",  // Using the more capable model with internet access
+      model: "gpt-4o",  // Using the internet-enabled model
       messages: [
         {
           role: "system",
-          content: "You are a helpful assistant with internet access that searches for historical weather events and returns them in JSON format. You should actively search the internet for recent weather events, especially from 2024, and verify the information before including it. Only return events within the specified date range."
+          content: "You are a helpful assistant with internet access. Your task is to search the internet for recent weather events, especially from 2024, and verify the information before including it. You must actively browse the internet to find and confirm these events. Return only events within the specified date range in JSON format."
         },
         {
           role: "user",
@@ -78,37 +80,41 @@ Deno.serve(async (req) => {
       const parsedResponse = JSON.parse(responseContent);
       // The response might be in the format { events: [...] } or just an array
       events = Array.isArray(parsedResponse) ? parsedResponse : (parsedResponse.events || []);
+      console.log('Parsed events:', events);
+
+      // Store events in the database
+      for (const event of events) {
+        const { error: upsertError } = await supabaseClient
+          .from('weather_events')
+          .upsert({
+            date: event.date,
+            type: event.type,
+            details: event.details,
+            source: event.source,
+            source_url: event.sourceUrl,
+            location: location
+          }, {
+            onConflict: 'date,location,type'
+          });
+
+        if (upsertError) {
+          console.error('Error storing event:', upsertError);
+        } else {
+          console.log('Successfully stored event:', event);
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, events }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     } catch (error) {
       console.error('Error parsing OpenAI response:', error);
-      events = [];
+      return new Response(
+        JSON.stringify({ error: 'Failed to parse weather events' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
-
-    console.log('Parsed events:', events);
-
-    // Store events in the database
-    for (const event of events) {
-      const { data, error } = await supabaseClient
-        .from('weather_events')
-        .upsert({
-          date: event.date,
-          type: event.type,
-          details: event.details,
-          source: event.source,
-          source_url: event.sourceUrl,
-          location: location
-        }, {
-          onConflict: 'date,location,type'
-        });
-
-      if (error) {
-        console.error('Error storing event:', error);
-      }
-    }
-
-    return new Response(
-      JSON.stringify({ success: true, events }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
 
   } catch (error) {
     console.error('Error in search-weather-events function:', error);
