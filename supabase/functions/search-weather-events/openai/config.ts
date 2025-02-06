@@ -19,9 +19,7 @@ export const createFetchOptions = (openAIApiKey: string, options: OpenAIRequestO
     ],
     temperature: 0.7,
     max_tokens: MAX_TOKENS,
-    response_format: { type: "json_object" },
-    tools: [{ type: "retrieval" }],
-    tool_choice: "auto"
+    response_format: { type: "json_object" }
   }),
 });
 
