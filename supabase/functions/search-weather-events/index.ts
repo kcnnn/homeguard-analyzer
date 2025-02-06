@@ -30,39 +30,42 @@ Deno.serve(async (req) => {
     )
 
     // Use OpenAI to search for weather events
-    const prompt = `Search the internet for significant hail and windstorm events in ${location} that occurred between ${effectiveDate} and ${expirationDate}. 
-    This is VERY important: make sure to include the April 9, 2024 hail event if it falls within these dates.
+    const prompt = `You are a weather event researcher with access to the internet. Search for significant hail and windstorm events that occurred at or near ${location} between ${effectiveDate} and ${expirationDate}.
+
+    VERY IMPORTANT: You must actively search the internet for real weather events, especially recent ones from 2024. Pay special attention to:
+    1. The April 9, 2024 hailstorm in Austin, TX if it falls within the date range
+    2. Any other significant hail or wind events in the Austin area during this period
     
-    Only return events that occurred within these exact dates.
-    
-    For each event, provide:
+    For each event found, provide:
     1. The exact date (YYYY-MM-DD format)
     2. The type (either 'hail' or 'wind')
-    3. A detailed description of the event including any damage reports
-    4. If available, a source name and URL
+    3. A detailed description including damage reports
+    4. Source name and URL if available
     
     Return the results as a JSON array with objects containing: date, type, details, source (optional), sourceUrl (optional).
     If no events are found, return an empty array.
     
-    Example response format:
-    [
-      {
-        "date": "2024-04-09",
-        "type": "hail",
-        "details": "Golf ball sized hail damaged vehicles and properties",
-        "source": "Weather Service",
-        "sourceUrl": "http://example.com"
-      }
-    ]`;
+    Example format:
+    {
+      "events": [
+        {
+          "date": "2024-04-09",
+          "type": "hail",
+          "details": "Severe hailstorm with golf ball sized hail damaged vehicles and properties in Austin",
+          "source": "Weather Service",
+          "sourceUrl": "http://example.com"
+        }
+      ]
+    }`;
 
     console.log('Sending prompt to OpenAI:', prompt);
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",  // Fixed: Using the correct model name for internet-enabled GPT-4
+      model: "gpt-4o",
       messages: [
         {
           role: "system",
-          content: "You are a helpful assistant with internet access. Your task is to search the internet for recent weather events, especially from 2024, and verify the information before including it. You must actively browse the internet to find and confirm these events. Return only events within the specified date range in JSON format."
+          content: "You are a weather researcher with internet access. Your task is to search the internet for recent weather events, especially from 2024, and verify the information before including it. You must actively browse the internet to find and confirm these events."
         },
         {
           role: "user",
@@ -78,8 +81,7 @@ Deno.serve(async (req) => {
     let events = [];
     try {
       const parsedResponse = JSON.parse(responseContent);
-      // The response might be in the format { events: [...] } or just an array
-      events = Array.isArray(parsedResponse) ? parsedResponse : (parsedResponse.events || []);
+      events = parsedResponse.events || [];
       console.log('Parsed events:', events);
 
       // Store events in the database
