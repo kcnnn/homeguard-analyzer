@@ -122,11 +122,12 @@ serve(async (req) => {
               - Include specific location details within the area
               - Provide verifiable sources for each event
               - If you find events, format them precisely with dates, measurements, and specific locations
+              - For future dates, include only officially predicted or forecasted severe weather events
               - If no verified events are found, return an empty array`
             },
             {
               role: 'user',
-              content: `Search for verified hail and windstorm events that occurred at or near ${location} between ${effectiveDate} and ${expirationDate}. 
+              content: `Search for verified hail and windstorm events that occurred or are predicted to occur at or near ${location} between ${effectiveDate} and ${expirationDate}. Include both historical events and officially predicted severe weather events within this time period.
               
               Return the response in this exact JSON format:
               {
@@ -154,7 +155,7 @@ serve(async (req) => {
         return res.json();
       }),
       
-      // Get events from NOAA
+      // Get events from NOAA (only for past dates)
       searchNOAAEvents(location, effectiveDate, expirationDate)
     ]);
 
