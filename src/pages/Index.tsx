@@ -4,7 +4,7 @@ import { PolicyDetails } from '@/components/PolicyDetails';
 import { WeatherEvents } from '@/components/WeatherEvents';
 import { toast } from '@/components/ui/use-toast';
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   Carousel,
   CarouselContent,
@@ -12,7 +12,6 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-import type { WeatherEvent } from '@/components/WeatherEvents';
 
 const Index = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -20,7 +19,6 @@ const Index = () => {
   const [location, setLocation] = useState<string>('');
   const [effectiveDate, setEffectiveDate] = useState<string>('');
   const [expirationDate, setExpirationDate] = useState<string>('');
-  const queryClient = useQueryClient();
 
   const { data: weatherEvents = [], isLoading: isLoadingEvents } = useQuery({
     queryKey: ['weather-events', location, effectiveDate, expirationDate],
@@ -29,7 +27,6 @@ const Index = () => {
 
       console.log('Searching for weather events with params:', { location, effectiveDate, expirationDate });
 
-      // Search for weather events using OpenAI
       try {
         const response = await supabase.functions.invoke('search-weather-events', {
           body: { 
@@ -51,7 +48,6 @@ const Index = () => {
 
         console.log('Successfully searched for weather events:', response.data);
         
-        // Return the events directly from the OpenAI response
         if (response.data?.events) {
           return response.data.events.map((event: any) => ({
             date: event.date,
@@ -74,6 +70,9 @@ const Index = () => {
       }
     },
     enabled: !!(location && effectiveDate && expirationDate),
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    cacheTime: 30 * 60 * 1000, // Keep data in cache for 30 minutes
+    retry: 1, // Only retry once on failure
   });
 
   const handleFileUpload = async (files: File[]) => {
@@ -103,26 +102,18 @@ const Index = () => {
         return;
       }
 
-      // Clear previous data before setting new values
-      setLocation('');
-      setEffectiveDate('');
-      setExpirationDate('');
-      
-      // Set new values and trigger weather events search
-      if (data.location) {
-        setLocation(data.location);
-      }
-      if (data.effectiveDate) {
-        setEffectiveDate(data.effectiveDate);
-      }
-      if (data.expirationDate) {
-        setExpirationDate(data.expirationDate);
-      }
+      // Update state in a single batch to prevent multiple re-renders
+      const updates = {
+        location: data.location || '',
+        effectiveDate: data.effectiveDate || '',
+        expirationDate: data.expirationDate || '',
+        policyDetails: [data]
+      };
 
-      setPolicyDetails([data]);
-
-      // Invalidate the weather events query to force a refresh
-      queryClient.invalidateQueries({ queryKey: ['weather-events'] });
+      setLocation(updates.location);
+      setEffectiveDate(updates.effectiveDate);
+      setExpirationDate(updates.expirationDate);
+      setPolicyDetails(updates.policyDetails);
 
       toast({
         title: "Analysis Complete",
