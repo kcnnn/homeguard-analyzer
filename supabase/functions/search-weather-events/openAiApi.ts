@@ -39,9 +39,7 @@ export async function searchOpenAIEvents(
               content: `You are a weather research assistant. Search for and report hail or severe wind events near ${location} between ${startDate} and ${endDate}. Include dates, sizes for hail, speeds for wind, and any damage reports. Return only JSON in this format: {"events": [{"date": "YYYY-MM-DD", "type": "hail|wind", "details": "description", "source": "optional source", "sourceUrl": "optional url"}]}`
             }
           ],
-          temperature: 0.7,
-          tools: [{ "type": "retrieval" }],
-          tool_choice: "auto"
+          temperature: 0.7
         })
       }
     );
