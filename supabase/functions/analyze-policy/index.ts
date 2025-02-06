@@ -31,14 +31,14 @@ const createOpenAIRequest = (imageUrl: string) => {
     messages: [
       {
         role: 'system',
-        content: 'You are an expert insurance policy analyzer. Extract coverage information from the image and return it in JSON format with coverageA, coverageB, coverageC, coverageD, deductible (for All Other Perils), windstormDeductible (for Windstorm or Hail), effectiveDate, and expirationDate fields. Use "Not found" if a value cannot be determined. For the windstormDeductible, if it is expressed as a percentage of Coverage A, calculate the actual amount.'
+        content: 'You are an expert insurance policy analyzer. Extract coverage information from the image and return it in a strict JSON format. Only include the following fields: coverageA, coverageB, coverageC, coverageD, deductible (for All Other Perils), windstormDeductible (for Windstorm or Hail), effectiveDate, and expirationDate. Use "Not found" if a value cannot be determined. For the windstormDeductible, if it is expressed as a percentage of Coverage A, calculate the actual amount. Return ONLY the JSON object, no additional text.'
       },
       {
         role: 'user',
         content: [
           {
             type: 'text',
-            text: 'Please analyze this insurance policy declaration page and extract the coverage information. Make sure to include both the standard deductible (All Other Perils) and the Windstorm/Hail deductible.'
+            text: 'Analyze this insurance policy declaration page and extract the coverage information in JSON format. Include both the standard deductible (All Other Perils) and the Windstorm/Hail deductible.'
           },
           {
             type: 'image_url',
@@ -55,6 +55,7 @@ const createOpenAIRequest = (imageUrl: string) => {
 
 // Call OpenAI API
 const callOpenAI = async (requestBody: any) => {
+  console.log('Calling OpenAI API...');
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -75,23 +76,45 @@ const callOpenAI = async (requestBody: any) => {
 
 // Parse OpenAI response content
 const parseOpenAIResponse = (content: string): string => {
-  if (content.includes('```json')) {
-    content = content.split('```json')[1].split('```')[0].trim();
-  } else if (content.includes('```')) {
-    content = content.split('```')[1].split('```')[0].trim();
-  }
+  console.log('Raw OpenAI response:', content);
+  
+  try {
+    // Try to parse the content directly first
+    JSON.parse(content);
+    return content;
+  } catch (e) {
+    // If direct parsing fails, try to extract JSON
+    try {
+      if (content.includes('```json')) {
+        content = content.split('```json')[1].split('```')[0].trim();
+      } else if (content.includes('```')) {
+        content = content.split('```')[1].split('```')[0].trim();
+      }
 
-  if (content.includes('{')) {
-    const startIndex = content.indexOf('{');
-    const endIndex = content.lastIndexOf('}') + 1;
-    content = content.substring(startIndex, endIndex);
+      // Find the first { and last }
+      const startIndex = content.indexOf('{');
+      const endIndex = content.lastIndexOf('}') + 1;
+      
+      if (startIndex === -1 || endIndex === 0) {
+        throw new Error('No valid JSON object found in response');
+      }
+      
+      content = content.substring(startIndex, endIndex);
+      
+      // Validate that we can parse this JSON
+      JSON.parse(content);
+      return content;
+    } catch (e) {
+      console.error('Error parsing OpenAI response:', e);
+      throw new Error('Failed to parse OpenAI response into valid JSON');
+    }
   }
-
-  return content;
 };
 
 // Format policy details
 const formatPolicyDetails = (rawDetails: any): PolicyDetails => {
+  console.log('Formatting policy details:', rawDetails);
+  
   const defaultDetails: PolicyDetails = {
     coverageA: 'Not found',
     coverageB: 'Not found',
@@ -110,6 +133,7 @@ const formatPolicyDetails = (rawDetails: any): PolicyDetails => {
       let value = rawDetails[field];
       
       if (currencyFields.includes(field) && value !== 'Not found') {
+        // Remove any existing currency symbols and formatting
         value = value.replace(/[^0-9.]/g, '');
         if (!isNaN(parseFloat(value))) {
           value = `$${value}`;
@@ -126,6 +150,8 @@ const formatPolicyDetails = (rawDetails: any): PolicyDetails => {
 // Main request handler
 const handleRequest = async (req: Request) => {
   try {
+    console.log('Starting policy analysis...');
+    
     if (!openAIApiKey) {
       console.error('OpenAI API key is not configured');
       throw new Error('OpenAI API key is not configured');
@@ -152,12 +178,12 @@ const handleRequest = async (req: Request) => {
     }
 
     const content = parseOpenAIResponse(data.choices[0].message.content.trim());
-    console.log('Raw content from OpenAI:', content);
+    console.log('Parsed content:', content);
 
     const parsedDetails = JSON.parse(content);
     const formattedDetails = formatPolicyDetails(parsedDetails);
 
-    console.log('Sending response:', formattedDetails);
+    console.log('Sending formatted response:', formattedDetails);
     return new Response(JSON.stringify(formattedDetails), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
