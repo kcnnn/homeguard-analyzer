@@ -70,13 +70,31 @@ Important rules:
 };
 
 const cleanJsonResponse = (content: string): string => {
-  // Remove any markdown formatting or additional text
+  console.log('Raw content from OpenAI:', content);
+  
+  // Remove any markdown code block indicators
+  content = content.replace(/```json\n|\n```/g, '');
+  
+  // Find the first { and last }
   const jsonStart = content.indexOf('{');
   const jsonEnd = content.lastIndexOf('}');
+  
   if (jsonStart === -1 || jsonEnd === -1) {
+    console.error('No JSON object delimiters found in content');
     throw new Error('No valid JSON object found in response');
   }
-  return content.slice(jsonStart, jsonEnd + 1);
+  
+  const extractedJson = content.slice(jsonStart, jsonEnd + 1);
+  console.log('Extracted JSON:', extractedJson);
+  
+  // Validate that it's actually valid JSON
+  try {
+    JSON.parse(extractedJson);
+    return extractedJson;
+  } catch (error) {
+    console.error('Failed to parse extracted JSON:', error);
+    throw new Error('Invalid JSON structure in response');
+  }
 };
 
 const analyzeImage = async (imageUrl: string, isDeductibles: boolean): Promise<any> => {
@@ -121,9 +139,10 @@ const analyzeImage = async (imageUrl: string, isDeductibles: boolean): Promise<a
     }
 
     const cleanedContent = cleanJsonResponse(data.choices[0].message.content);
-    console.log('Cleaned content:', cleanedContent);
+    const parsedContent = JSON.parse(cleanedContent);
+    console.log('Successfully parsed content:', parsedContent);
     
-    return JSON.parse(cleanedContent);
+    return parsedContent;
   } catch (error) {
     console.error(`Error analyzing image for ${isDeductibles ? 'deductibles' : 'coverages'}:`, error);
     throw error;
