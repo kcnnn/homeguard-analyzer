@@ -12,7 +12,7 @@ export const OpenAiEvents = ({ isLoading, events }: OpenAiEventsProps) => {
     <div className="mt-8 pt-8 border-t border-gray-200">
       <h3 className="text-lg font-semibold mb-4">Additional Reported Events</h3>
       
-      {/* Show loading state */}
+      {/* Always show loading state when isLoading is true */}
       {isLoading && (
         <div className="flex flex-col items-center justify-center space-y-4 py-8">
           <Loader className="h-8 w-8 animate-spin text-primary" />
@@ -20,7 +20,7 @@ export const OpenAiEvents = ({ isLoading, events }: OpenAiEventsProps) => {
         </div>
       )}
 
-      {/* Show events if they exist and not loading */}
+      {/* Show events only when not loading and events exist */}
       {!isLoading && events.length > 0 && (
         <>
           <p className="text-sm text-gray-500 mb-4">
