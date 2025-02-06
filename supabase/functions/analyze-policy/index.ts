@@ -32,8 +32,8 @@ const createOpenAIRequest = (imageUrl: string) => {
         content: `You are an expert insurance policy analyzer. Extract coverage information from the image and return it in a strict JSON format. 
 
 CRITICAL: Pay special attention to these two deductibles which are typically found on page 2 of the declarations:
-1. Property Coverage Deductible (All Other Perils) - This is typically a fixed amount like $5,000
-2. Windstorm or Hail Deductible - This is often shown as both a percentage (like 1%) AND the calculated amount
+1. Property Coverage Deductible (All Other Perils) - This is a fixed dollar amount
+2. Windstorm or Hail Deductible - This is often shown as both a percentage AND a calculated dollar amount. Always return the dollar amount.
 
 Return ONLY a JSON object with these fields:
 - coverageA (include dollar sign)
@@ -41,18 +41,18 @@ Return ONLY a JSON object with these fields:
 - coverageC (include dollar sign)
 - coverageD (include dollar sign)
 - deductible (the All Other Perils deductible, include dollar sign)
-- windstormDeductible (the actual calculated amount for Wind/Hail, include dollar sign)
+- windstormDeductible (the actual calculated dollar amount for Wind/Hail, include dollar sign)
 - effectiveDate
 - expirationDate
 
-Use "Not found" if a value cannot be determined. For the windstormDeductible, always return the actual calculated amount, not the percentage.`
+Use "Not found" if a value cannot be determined. For the windstormDeductible, always return the actual calculated dollar amount, not the percentage.`
       },
       {
         role: 'user',
         content: [
           {
             type: 'text',
-            text: 'Carefully analyze this insurance policy declaration page. Look specifically for the Property Coverage Deductible (All Other Perils) which should be $5,000 and the Windstorm or Hail Deductible which should be $6,830 (calculated as 1% of Coverage A). Return the information in JSON format.'
+            text: 'Carefully analyze this insurance policy declaration page. Look specifically for both the Property Coverage Deductible (All Other Perils) and the Windstorm or Hail Deductible. For the Wind/Hail deductible, make sure to return the calculated dollar amount, not the percentage. Return the information in JSON format.'
           },
           {
             type: 'image_url',
