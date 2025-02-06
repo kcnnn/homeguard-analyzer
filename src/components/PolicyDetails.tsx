@@ -8,6 +8,7 @@ interface PolicyDetailsProps {
     coverageC?: string;
     coverageD?: string;
     deductible?: string;
+    windstormDeductible?: string;
     effectiveDate?: string;
     expirationDate?: string;
   } | null;
@@ -54,8 +55,12 @@ export const PolicyDetails = ({ isLoading, policyDetails }: PolicyDetailsProps) 
           <p className="text-lg">{policyDetails.coverageD || 'Not found'}</p>
         </div>
         <div>
-          <h3 className="font-medium text-gray-600">Deductible</h3>
+          <h3 className="font-medium text-gray-600">Property Coverage Deductible (All Other Perils)</h3>
           <p className="text-lg">{policyDetails.deductible || 'Not found'}</p>
+        </div>
+        <div>
+          <h3 className="font-medium text-gray-600">Windstorm or Hail Deductible</h3>
+          <p className="text-lg">{policyDetails.windstormDeductible || 'Not found'}</p>
         </div>
         <div>
           <h3 className="font-medium text-gray-600">Policy Period</h3>

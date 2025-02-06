@@ -14,6 +14,7 @@ interface PolicyDetails {
   coverageC: string;
   coverageD: string;
   deductible: string;
+  windstormDeductible: string;
   effectiveDate: string;
   expirationDate: string;
 }
@@ -26,18 +27,18 @@ const formatBase64Image = (base64Image: string): string => {
 // Create the OpenAI API request body
 const createOpenAIRequest = (imageUrl: string) => {
   return {
-    model: "gpt-4o", // Updated to use the correct model
+    model: "gpt-4o",
     messages: [
       {
         role: 'system',
-        content: 'You are an expert insurance policy analyzer. Extract coverage information from the image and return it in JSON format with coverageA, coverageB, coverageC, coverageD, deductible, effectiveDate, and expirationDate fields. Use "Not found" if a value cannot be determined.'
+        content: 'You are an expert insurance policy analyzer. Extract coverage information from the image and return it in JSON format with coverageA, coverageB, coverageC, coverageD, deductible (for All Other Perils), windstormDeductible (for Windstorm or Hail), effectiveDate, and expirationDate fields. Use "Not found" if a value cannot be determined. For the windstormDeductible, if it is expressed as a percentage of Coverage A, calculate the actual amount.'
       },
       {
         role: 'user',
         content: [
           {
             type: 'text',
-            text: 'Please analyze this insurance policy declaration page and extract the coverage information.'
+            text: 'Please analyze this insurance policy declaration page and extract the coverage information. Make sure to include both the standard deductible (All Other Perils) and the Windstorm/Hail deductible.'
           },
           {
             type: 'image_url',
@@ -97,11 +98,12 @@ const formatPolicyDetails = (rawDetails: any): PolicyDetails => {
     coverageC: 'Not found',
     coverageD: 'Not found',
     deductible: 'Not found',
+    windstormDeductible: 'Not found',
     effectiveDate: 'Not found',
     expirationDate: 'Not found'
   };
 
-  const currencyFields = ['coverageA', 'coverageB', 'coverageC', 'coverageD', 'deductible'];
+  const currencyFields = ['coverageA', 'coverageB', 'coverageC', 'coverageD', 'deductible', 'windstormDeductible'];
   
   Object.keys(defaultDetails).forEach(field => {
     if (rawDetails[field] && typeof rawDetails[field] === 'string') {
@@ -170,6 +172,7 @@ const handleRequest = async (req: Request) => {
       coverageC: 'Error processing request',
       coverageD: 'Error processing request',
       deductible: 'Error processing request',
+      windstormDeductible: 'Error processing request',
       effectiveDate: 'Error processing request',
       expirationDate: 'Error processing request'
     };
