@@ -1,3 +1,4 @@
+
 project_id = "cmjsqliqmfpoxklunhqv"
 
 [api]
@@ -5,10 +6,8 @@ enabled = true
 port = 54321
 schemas = ["public", "storage"]
 
-[[functions]]
 [functions.analyze-policy]
 verify_jwt = false
 
-[[functions]]
 [functions.search-weather-events]
 verify_jwt = false
