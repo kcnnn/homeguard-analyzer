@@ -17,26 +17,33 @@ export function parseLocation(location: string): ParsedLocation {
   let city = '';
   let state = '';
 
-  if (location.includes(',')) {
-    const parts = location.split(',').map(part => part.trim());
-    
-    street = parts[0];
+  // First, try to extract state code
+  const stateMatch = location.match(/\b([A-Z]{2})\b/);
+  if (stateMatch) {
+    state = stateMatch[1];
+  }
 
-    if (parts.length > 1) {
-      city = parts[1].trim();
-    }
-
-    if (parts.length > 2) {
-      const lastPart = parts[parts.length - 1];
-      const stateMatch = lastPart.match(/([A-Z]{2})/);
-      if (stateMatch) {
-        state = stateMatch[1];
+  // Split the location string by commas
+  const parts = location.split(',').map(part => part.trim());
+  
+  if (parts.length >= 2) {
+    // Last part might contain the state
+    const lastPart = parts[parts.length - 1];
+    if (!state) {
+      const stateInLast = lastPart.match(/\b([A-Z]{2})\b/);
+      if (stateInLast) {
+        state = stateInLast[1];
       }
     }
 
-    console.log('Parsed address components:', { street, city, state });
+    // Second to last part is usually the city
+    city = parts[parts.length - 2].trim();
+    
+    // First part is usually the street
+    street = parts[0].trim();
   }
 
+  console.log('Parsed location:', { street, city, state });
   return { street, city, state };
 }
 
@@ -55,102 +62,96 @@ export async function searchNOAAEvents(
       return [];
     }
 
-    // Use the Storm Events Database instead of GHCND
-    const baseUrl = 'https://www.ncdc.noaa.gov/cdo-web/api/v2/data';
-    const url = new URL(baseUrl);
-    url.searchParams.append('datasetid', 'GHCND');
-    url.searchParams.append('locationid', `CITY:US${state}${city.toUpperCase()}`);
-    url.searchParams.append('startdate', formattedStartDate);
-    url.searchParams.append('enddate', formattedEndDate);
-    url.searchParams.append('datatypeid', 'AWND,PRCP'); // Average daily wind speed and precipitation
-    url.searchParams.append('limit', '1000');
+    // First try the Storm Events Database
+    const stormEventsUrl = new URL('https://www.ncdc.noaa.gov/stormevents/listevents.jsp');
+    stormEventsUrl.searchParams.append('beginDate', formattedStartDate.replace(/-/g, ''));
+    stormEventsUrl.searchParams.append('endDate', formattedEndDate.replace(/-/g, ''));
+    stormEventsUrl.searchParams.append('state', state);
+    stormEventsUrl.searchParams.append('eventType', 'ALL'); // Include all severe weather events
+    stormEventsUrl.searchParams.append('county', city);
     
-    console.log('NOAA API URL:', url.toString());
-    console.log('Using NOAA API Key:', Deno.env.get('NOAA_API_KEY') ? 'Key is present' : 'No key found');
-
-    const response = await fetch(url.toString(), {
+    console.log('Trying Storm Events Database:', stormEventsUrl.toString());
+    
+    const stormResponse = await fetch(stormEventsUrl.toString(), {
       headers: {
         'token': Deno.env.get('NOAA_API_KEY') || ''
       }
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('NOAA API Error:', response.status, errorText);
+    // If Storm Events fails, try the CDO Web API
+    if (!stormResponse.ok) {
+      console.log('Storm Events API failed, trying CDO Web API');
       
-      // Try the Storm Events Database as a fallback
-      const stormEventsUrl = new URL('https://www.ncdc.noaa.gov/stormevents/csv');
-      stormEventsUrl.searchParams.append('beginDate', formattedStartDate.replace(/-/g, ''));
-      stormEventsUrl.searchParams.append('endDate', formattedEndDate.replace(/-/g, ''));
-      stormEventsUrl.searchParams.append('state', state);
+      const cdoUrl = new URL('https://www.ncdc.noaa.gov/cdo-web/api/v2/data');
+      cdoUrl.searchParams.append('datasetid', 'GHCND');
+      cdoUrl.searchParams.append('locationid', `CITY:US${state}`);
+      cdoUrl.searchParams.append('startdate', formattedStartDate);
+      cdoUrl.searchParams.append('enddate', formattedEndDate);
+      cdoUrl.searchParams.append('datatypeid', 'AWND,PRCP,WT03,WT04'); // Wind, Precipitation, Thunder, Hail
+      cdoUrl.searchParams.append('limit', '1000');
       
-      console.log('Trying Storm Events Database:', stormEventsUrl.toString());
-      
-      const stormResponse = await fetch(stormEventsUrl.toString(), {
+      console.log('NOAA CDO API URL:', cdoUrl.toString());
+      console.log('NOAA API Key present:', !!Deno.env.get('NOAA_API_KEY'));
+
+      const cdoResponse = await fetch(cdoUrl.toString(), {
         headers: {
           'token': Deno.env.get('NOAA_API_KEY') || ''
         }
       });
 
-      if (!stormResponse.ok) {
-        console.error('Storm Events API Error:', stormResponse.status);
+      if (!cdoResponse.ok) {
+        console.error('CDO API Error:', cdoResponse.status);
         return [];
       }
 
-      const stormData = await stormResponse.text();
-      console.log('Storm Events Data:', stormData);
+      const data = await cdoResponse.json();
+      console.log('CDO API Response:', JSON.stringify(data, null, 2));
 
-      // Parse CSV data and convert to WeatherEvent format
-      const events = stormData
-        .split('\n')
-        .slice(1) // Skip header row
-        .filter(line => line.includes('HAIL') || line.includes('WIND'))
-        .map(line => {
-          const [date, eventType, ...details] = line.split(',');
+      const events = data.results
+        ?.filter((event: any) => event.datatype && event.date)
+        .map((event: any) => {
+          const isHail = event.datatype === 'WT04' || (event.datatype === 'PRCP' && event.value > 0.5);
+          const isWind = event.datatype === 'AWND' && event.value > 20;
+          
+          if (!isHail && !isWind) return null;
+          
           return {
-            date: new Date(date).toISOString().split('T')[0],
-            type: eventType.includes('HAIL') ? 'hail' : 'wind',
-            details: details.join(' '),
-            source: 'NOAA Storm Events Database',
-            sourceUrl: 'https://www.ncdc.noaa.gov/stormevents/'
+            date: event.date.split('T')[0],
+            type: isHail ? 'hail' : 'wind',
+            details: `${isHail ? 'Hail' : 'High winds'} recorded at ${city}, ${state}. ${
+              isHail ? `Precipitation: ${event.value} inches` : `Wind speed: ${event.value} mph`
+            }`,
+            source: 'NOAA National Weather Service',
+            sourceUrl: 'https://www.ncdc.noaa.gov/cdo-web/'
           };
-        });
+        })
+        .filter((event): event is WeatherEvent => event !== null);
 
-      console.log('Processed Storm Events:', events);
-      return events;
+      return events || [];
     }
 
-    const data = await response.json();
-    console.log('NOAA API Response:', JSON.stringify(data, null, 2));
-
-    if (!data.results || !Array.isArray(data.results)) {
-      console.log('No results found in NOAA response');
-      return [];
-    }
-
-    const events = data.results
-      .filter((event: any) => event.datatype && event.date)
-      .map((event: any) => {
-        const isHail = event.value > 0 && event.datatype === 'PRCP';
-        const isWind = event.datatype === 'AWND' && event.value > 20; // Wind speed > 20 mph
-        
-        if (!isHail && !isWind) return null;
-        
-        const details = isHail 
-          ? `Precipitation recorded: ${event.value} ${event.unit || 'inches'}`
-          : `Wind speed recorded: ${event.value} ${event.unit || 'mph'}`;
-        
+    // Parse Storm Events response
+    const stormData = await stormResponse.text();
+    console.log('Storm Events raw data:', stormData);
+    
+    const events = stormData
+      .split('\n')
+      .slice(1) // Skip header row
+      .filter(line => line.trim() && (line.includes('HAIL') || line.includes('WIND')))
+      .map(line => {
+        const [date, eventType, magnitude, ...details] = line.split(',');
         return {
-          date: event.date.split('T')[0],
-          type: isHail ? 'hail' : 'wind',
-          details,
-          source: 'NOAA National Weather Service',
-          sourceUrl: 'https://www.ncdc.noaa.gov/cdo-web/',
+          date: new Date(date).toISOString().split('T')[0],
+          type: eventType.toUpperCase().includes('HAIL') ? 'hail' : 'wind',
+          details: `${eventType} event in ${city}, ${state}. ${
+            magnitude ? `Magnitude: ${magnitude}. ` : ''
+          }${details.join(' ')}`.trim(),
+          source: 'NOAA Storm Events Database',
+          sourceUrl: 'https://www.ncdc.noaa.gov/stormevents/'
         };
-      })
-      .filter((event): event is WeatherEvent => event !== null);
+      });
 
-    console.log('Processed NOAA events:', events);
+    console.log('Processed Storm Events:', events);
     return events;
   } catch (error) {
     console.error('Error fetching NOAA data:', error);
